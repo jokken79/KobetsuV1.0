@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { kobetsuApi } from '@/lib/api'
-import { KobetsuForm } from '@/components/kobetsu/KobetsuForm'
+import { KobetsuFormHybrid } from '@/components/kobetsu/KobetsuFormHybrid'
 import type { KobetsuCreate } from '@/types'
 
 export default function CreateKobetsuPage() {
@@ -77,7 +77,7 @@ export default function CreateKobetsuPage() {
           </p>
         </div>
         <div className="card-body">
-          <KobetsuForm
+          <KobetsuFormHybrid
             onSubmit={handleSubmit}
             isLoading={createMutation.isPending}
           />
