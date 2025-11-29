@@ -1,411 +1,848 @@
-# 個別契約書管理システム (Kobetsu Keiyakusho Management System)
+# 🏢 UNS-Kobetsu Sistema de Gestión de 個別契約書
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
-![Next.js](https://img.shields.io/badge/next.js-15.0+-black.svg)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-green.svg)
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Next.js](https://img.shields.io/badge/Next.js-15.0+-000000?style=for-the-badge&logo=next.js&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?style=for-the-badge&logo=fastapi&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-24.0+-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.6+-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
 
-**Sistema completo para generar y gestionar 個別契約書 (Contratos Individuales de Dispatch) según la 労働者派遣法第26条**
+**Sistema Integral de Gestión de 個別契約書 (Contratos Individuales de Dispatch)**
 
-[Características](#-características) •
-[Instalación](#-instalación) •
-[Documentación](#-documentación) •
-[API](#-api) •
-[Contribuir](#-contribuir)
+**労働者派遣法第26条に準拠 | Cumple con la Ley de Dispatch Laboral de Japón**
+
+[🚀 Instalación](#-instalación-rápida) •
+[📋 Características](#-características-principales) •
+[📖 Documentación](#-documentación) •
+[🔌 API](#-api-documentation) •
+[🧪 Tests](#-tests)
 
 </div>
 
 ---
 
-## 📋 **Tabla de Contenidos**
+## 📝 Descripción del Proyecto
 
-- [¿Qué es 個別契約書?](#-qué-es-個別契約書)
-- [Características](#-características)
-- [Requisitos](#-requisitos)
-- [Instalación](#-instalación)
-- [Uso Rápido](#-uso-rápido)
-- [Estructura del Proyecto](#-estructura-del-proyecto)
-- [API Endpoints](#-api-endpoints)
-- [Tecnologías](#-tecnologías)
-- [Roadmap](#-roadmap)
-- [Contribuir](#-contribuir)
-- [Licencia](#-licencia)
+### 🇯🇵 日本語
+
+**UNS-Kobetsu**は、労働者派遣法第26条に完全準拠した個別契約書管理システムです。派遣元事業者が派遣先企業と締結する個別契約書の作成、管理、PDF生成を自動化します。16項目の法定記載事項を確実に管理し、契約更新アラートや一括インポート機能を提供します。
+
+### 🇪🇸 Español
+
+**UNS-Kobetsu** es un sistema completo para la gestión de 個別契約書 (contratos individuales de dispatch) que cumple con la 労働者派遣法第26条 (Ley de Dispatch Laboral de Japón, Artículo 26). Automatiza la creación, gestión y generación de documentos PDF/DOCX para empresas de staffing, garantizando el cumplimiento de los 16 campos legalmente requeridos.
 
 ---
 
-## 🎯 **¿Qué es 個別契約書?**
+## ✨ Características Principales
 
-個別契約書 (Kobetsu Keiyakusho) es el **contrato individual de dispatch** que las 派遣元 (empresas de staffing) deben crear con las 派遣先 (empresas cliente) cada vez que envían trabajadores.
+### 📄 **Gestión de Contratos**
+- ✅ CRUD completo de 個別契約書 con los 16 campos obligatorios
+- ✅ Generación automática de número de contrato (formato: KOB-YYYYMM-XXXX)
+- ✅ Validación automática de cumplimiento legal
+- ✅ Estados de contrato: borrador, activo, expirado, terminado
+- ✅ Renovación automática de contratos
 
-### **Requisitos Legales (労働者派遣法第26条)**
-
-Este contrato es **OBLIGATORIO** por ley y debe incluir **16 items específicos**:
-
-1. ✅ **業務内容** - Contenido del trabajo
-2. ✅ **責任の程度** - Nivel de responsabilidad
-3. ✅ **派遣先事業所** - Lugar de trabajo (nombre, dirección, organización)
-4. ✅ **指揮命令者** - Supervisor directo
-5. ✅ **就業日** - Días de trabajo
-6. ✅ **就業時間** - Horarios (inicio, fin, descansos)
-7. ✅ **安全衛生** - Seguridad e higiene
-8. ✅ **苦情処理** - Manejo de quejas
-9. ✅ **契約解除時の措置** - Medidas en caso de cancelación
-10. ✅ **派遣元責任者** - Responsable de派遣元
-11. ✅ **派遣先責任者** - Responsable de派遣先
-12. ✅ **時間外労働** - Horas extra
-13. ✅ **福利厚生** - Instalaciones y beneficios
-14. ✅ **直接雇用防止措置** - Prevención de contratación directa
-15. ✅ **労使協定方式** - Método de acuerdo laboral
-16. ✅ **無期雇用・60歳以上** - Empleados permanentes/+60 años
-
----
-
-## ✨ **Características**
-
-### **🎨 Generación Automatizada**
-- ✅ Auto-completado inteligente desde base de datos
-- ✅ Generación de número de contrato automático
-- ✅ Validación de todos los 16 items obligatorios
-- ✅ Plantillas profesionales en formato DOCX/PDF
-
-### **📊 Dashboard de Gestión**
-- ✅ Vista de todos los contratos activos
-- ✅ Filtros por empresa cliente, estado, fecha
-- ✅ Alertas de contratos próximos a vencer
+### 📊 **Dashboard Analítico**
 - ✅ Estadísticas en tiempo real
-
-### **📝 Gestión Completa del Ciclo**
-- ✅ Borradores editables
-- ✅ Contratos activos
-- ✅ Renovaciones automáticas
-- ✅ Historial completo
-
-### **🔒 Control y Auditoría**
-- ✅ Registro de quién creó cada contrato
-- ✅ Historial de cambios
-- ✅ Control de acceso por roles
+- ✅ Alertas de contratos próximos a vencer
+- ✅ Métricas por fábrica y departamento
+- ✅ Gráficos de tendencias
 - ✅ Exportación de reportes
 
-### **🚀 Integración con Sistema Existente**
-- ✅ Se integra con UNS-ClaudeJP
-- ✅ Usa datos de `factories` y `employees`
-- ✅ Compatible con `dispatch_assignments`
-- ✅ API REST completa
+### 🏭 **Integración con Base Madre**
+- ✅ Sincronización bidireccional con sistema central
+- ✅ Actualización automática de empresas y plantas
+- ✅ Gestión unificada de empleados
+- ✅ Modo híbrido: local + sincronización
+- ✅ API REST para integración externa
+
+### 📑 **Generación de Documentos**
+- ✅ PDF profesionales con formato oficial japonés
+- ✅ Documentos DOCX editables
+- ✅ Plantillas personalizables
+- ✅ Generación masiva de contratos
+- ✅ Firma electrónica (próximamente)
+
+### 🔐 **Seguridad y Auditoría**
+- ✅ Autenticación JWT con refresh tokens
+- ✅ Control de acceso basado en roles
+- ✅ Registro completo de auditoría
+- ✅ Cifrado de datos sensibles
+- ✅ Cumplimiento GDPR/個人情報保護法
+
+### 📤 **Importación/Exportación**
+- ✅ Importación desde Excel (formato original con 11,000+ fórmulas)
+- ✅ Importación CSV masiva
+- ✅ Exportación a Excel/CSV
+- ✅ Migración desde sistema legacy
+- ✅ API para integraciones externas
 
 ---
 
-## 📦 **Requisitos**
+## 🎯 Campos Legales Obligatorios (労働者派遣法第26条)
 
-### **Software**
-- Docker Desktop (Windows/Mac) o Docker Engine (Linux)
-- Python 3.11+
-- Node.js 18+
-- Git
+El sistema garantiza el cumplimiento de los **16 campos requeridos por ley**:
 
-### **Recursos**
-- 4GB RAM mínimo (8GB recomendado)
-- 10GB espacio en disco
-- Puertos disponibles: 3000, 8000, 5432, 6379
+| # | Campo | 日本語 | Descripción |
+|---|-------|--------|-------------|
+| 1 | **work_content** | 業務内容 | Descripción detallada del trabajo |
+| 2 | **responsibility_level** | 責任の程度 | Nivel de responsabilidad |
+| 3 | **worksite_name** | 派遣先事業所 | Nombre del lugar de trabajo |
+| 4 | **worksite_address** | 事業所住所 | Dirección completa |
+| 5 | **worksite_department** | 配属部署 | Departamento asignado |
+| 6 | **supervisor_name** | 指揮命令者 | Nombre del supervisor |
+| 7 | **work_days** | 就業日 | Días laborales (L-D) |
+| 8 | **work_start_time** | 始業時刻 | Hora de inicio |
+| 9 | **work_end_time** | 終業時刻 | Hora de término |
+| 10 | **break_time** | 休憩時間 | Tiempo de descanso |
+| 11 | **safety_health** | 安全衛生 | Medidas de seguridad |
+| 12 | **complaint_handling** | 苦情処理 | Manejo de quejas |
+| 13 | **cancellation_measures** | 契約解除時の措置 | Medidas de cancelación |
+| 14 | **dispatch_source_manager** | 派遣元責任者 | Responsable派遣元 |
+| 15 | **dispatch_dest_manager** | 派遣先責任者 | Responsable派遣先 |
+| 16 | **overtime_work** | 時間外労働 | Horas extras permitidas |
 
 ---
 
-## 🚀 **Instalación**
+## 📋 Requisitos
 
-### **Opción 1: Standalone (Nuevo Proyecto)**
+### **Software Requerido**
+- 🐳 Docker Desktop 24.0+ (Windows/Mac) o Docker Engine (Linux)
+- 🐳 Docker Compose 2.20+
+- 📦 Git 2.40+
+
+### **Recursos del Sistema**
+- 💾 RAM: 4GB mínimo (8GB recomendado)
+- 💿 Espacio en disco: 10GB mínimo
+- 🔌 Puertos disponibles: 3010, 8010, 8090, 5442, 6389
+
+### **Puertos Utilizados**
+| Servicio | Puerto | Descripción |
+|----------|--------|-------------|
+| Frontend (Next.js) | **3010** | Interfaz web principal |
+| Backend (FastAPI) | **8010** | API REST + documentación |
+| Adminer | **8090** | Interfaz de base de datos |
+| PostgreSQL | **5442** | Base de datos principal |
+| Redis | **6389** | Cache y sesiones |
+
+---
+
+## 🚀 Instalación Rápida
+
+### **1. Clonar el Repositorio**
 
 ```bash
-# 1. Clonar repositorio
-git clone https://github.com/jokken79/UNS-Kobetsu-Keiyakusho.git
-cd UNS-Kobetsu-Keiyakusho
+git clone https://github.com/uns-kikaku/UNS-Kobetsu-Integrated.git
+cd UNS-Kobetsu-Integrated
+```
 
-# 2. El archivo .env ya está configurado ✅
-# (SECRET_KEY seguro, puertos personalizados, etc.)
+### **2. Configurar Variables de Entorno**
 
-# 3. Iniciar servicios con Docker
+```bash
+# Copiar archivo de configuración
+cp .env.example .env
+
+# Editar .env si necesitas cambiar puertos o credenciales
+nano .env
+```
+
+### **3. Iniciar con Docker**
+
+```bash
+# Construir e iniciar todos los servicios
+docker compose up -d --build
+
+# Ver logs en tiempo real
+docker compose logs -f
+```
+
+### **4. Configuración Inicial**
+
+```bash
+# Aplicar migraciones de base de datos
+docker exec uns-kobetsu-backend alembic upgrade head
+
+# Crear usuario administrador
+docker exec uns-kobetsu-backend python scripts/create_admin.py
+# Credenciales: admin@local.dev / admin123
+
+# (Opcional) Importar datos de demostración
+docker exec uns-kobetsu-backend python scripts/import_demo_data.py
+```
+
+### **5. Acceder al Sistema**
+
+🌐 **Frontend:** http://localhost:3010
+📚 **API Docs:** http://localhost:8010/docs
+🗄️ **Base de Datos:** http://localhost:8090
+- Sistema: PostgreSQL
+- Servidor: uns-kobetsu-db
+- Usuario: kobetsu_admin
+- Contraseña: kobetsu_secure_pass
+- Base de datos: kobetsu_db
+
+---
+
+## 💻 Uso del Sistema
+
+### **Comandos Docker Útiles**
+
+```bash
+# Ver estado de contenedores
+docker compose ps
+
+# Detener todos los servicios
+docker compose down
+
+# Reiniciar un servicio específico
+docker compose restart backend
+
+# Acceder al contenedor backend
+docker exec -it uns-kobetsu-backend bash
+
+# Acceder al contenedor frontend
+docker exec -it uns-kobetsu-frontend sh
+
+# Ver logs de un servicio específico
+docker compose logs -f backend
+docker compose logs -f frontend
+
+# Limpiar todo (¡CUIDADO! Borra datos)
+docker compose down -v
+```
+
+### **Gestión de Puertos**
+
+El proyecto incluye scripts útiles para gestionar puertos:
+
+```bash
+# Ver qué aplicaciones están usando los puertos
+./scripts/show-apps.sh
+
+# Gestionar puertos Docker
+./scripts/docker-ports.sh
+
+# Opciones disponibles:
+# 1) Ver puertos en uso
+# 2) Detener todos los contenedores
+# 3) Liberar puertos específicos
+# 4) Reiniciar Docker
+```
+
+### **Cambiar Puertos**
+
+Si necesitas cambiar los puertos por defecto, edita el archivo `.env`:
+
+```bash
+# Frontend
+FRONTEND_PORT=3010  # Cambiar a 3000 si prefieres
+
+# Backend
+BACKEND_PORT=8010   # Cambiar a 8000 si prefieres
+
+# Base de datos
+POSTGRES_PORT=5442  # Cambiar a 5432 si no hay conflictos
+
+# Redis
+REDIS_PORT=6389     # Cambiar a 6379 si no hay conflictos
+
+# Adminer
+ADMINER_PORT=8090   # Cambiar a 8080 si prefieres
+```
+
+Después de cambiar puertos:
+```bash
+docker compose down
 docker compose up -d
-
-# 4. Aplicar migraciones
-docker exec -it uns-kobetsu-backend alembic upgrade head
-
-# 5. Crear usuario admin (opcional)
-docker exec -it uns-kobetsu-backend python scripts/create_admin.py
-
-# 6. Importar datos demo (opcional)
-docker exec -it uns-kobetsu-backend python scripts/import_demo_data.py
-```
-
-**📖 Ver guía detallada:** [INICIO_RAPIDO.md](INICIO_RAPIDO.md)
-
-### **Opción 2: Integración con UNS-ClaudeJP**
-
-```bash
-# 1. Navegar a tu proyecto UNS-ClaudeJP existente
-cd /path/to/UNS-ClaudeJP-6.0.0
-
-# 2. Clonar módulo de Kobetsu
-git clone https://github.com/jokken79/UNS-Kobetsu-Keiyakusho.git modules/kobetsu
-
-# 3. Aplicar migration a tu base de datos existente
-docker exec -it uns-claudejp-backend alembic upgrade head
-
-# 4. Copiar archivos de backend
-cp -r modules/kobetsu/backend/app/api/kobetsu.py backend/app/api/
-cp -r modules/kobetsu/backend/app/models/kobetsu_keiyakusho.py backend/app/models/
-cp -r modules/kobetsu/backend/app/schemas/kobetsu_keiyakusho.py backend/app/schemas/
-cp -r modules/kobetsu/backend/app/services/kobetsu_service.py backend/app/services/
-
-# 5. Copiar archivos de frontend
-cp -r modules/kobetsu/frontend/app/kobetsu/ frontend/app/(dashboard)/
-
-# 6. Reiniciar servicios
-docker compose restart backend frontend
 ```
 
 ---
 
-## 💻 **Uso Rápido**
-
-### **1. Acceder al Sistema**
-```
-Frontend: http://localhost:3010/kobetsu
-Backend API: http://localhost:8010/docs
-Adminer DB: http://localhost:8090
-```
-
-**Puertos personalizados** para evitar conflictos:
-- PostgreSQL: 5442
-- Redis: 6389
-- Backend: 8010
-- Frontend: 3010
-- Adminer: 8090
-
-### **2. Crear Nuevo Contrato**
-
-1. **Ir a: Menú → 個別契約書 → 新規作成**
-2. **Seleccionar 派遣先 (Empresa Cliente)**
-   - Auto-completa: nombre, dirección, responsable
-3. **Seleccionar Trabajadores**
-   - Buscar y seleccionar múltiples empleados
-4. **Completar Detalles**
-   - Fechas de dispatch
-   - Condiciones laborales
-   - Horarios y tarifas
-5. **Generar Contrato**
-   - Se crea el PDF automáticamente
-   - Se guarda en la base de datos
-
-### **3. Ver Dashboard**
+## 📁 Estructura del Proyecto
 
 ```
-📊 Contratos Activos: 45
-⚠️ Próximos a Vencer (30 días): 5
-✅ Firmados este mes: 12
-📄 Borradores: 3
-```
-
----
-
-## 📁 **Estructura del Proyecto**
-
-```
-UNS-Kobetsu-Keiyakusho/
-├── backend/                    # FastAPI Backend
-│   ├── alembic/               # Database migrations
-│   │   └── versions/
-│   │       └── add_kobetsu_keiyakusho.py
-│   ├── app/
-│   │   ├── api/
-│   │   │   └── kobetsu.py    # API endpoints
-│   │   ├── models/
-│   │   │   └── kobetsu_keiyakusho.py
-│   │   ├── schemas/
-│   │   │   └── kobetsu_keiyakusho.py
-│   │   ├── services/
+UNS-Kobetsu-Integrated/
+├── 📂 backend/                    # Backend FastAPI
+│   ├── 📂 alembic/               # Migraciones de BD
+│   │   └── versions/             # Archivos de migración
+│   ├── 📂 app/
+│   │   ├── 📂 api/v1/           # Endpoints API v1
+│   │   │   ├── auth.py          # Autenticación JWT
+│   │   │   ├── kobetsu.py       # Contratos principales
+│   │   │   ├── factories.py     # Gestión de fábricas
+│   │   │   ├── employees.py     # Gestión de empleados
+│   │   │   ├── imports.py       # Importación de datos
+│   │   │   └── documents.py     # Generación documentos
+│   │   ├── 📂 models/           # Modelos SQLAlchemy
+│   │   │   ├── kobetsu_keiyakusho.py
+│   │   │   ├── factory.py
+│   │   │   ├── employee.py
+│   │   │   └── dispatch_assignment.py
+│   │   ├── 📂 schemas/          # Validación Pydantic
+│   │   ├── 📂 services/         # Lógica de negocio
 │   │   │   ├── kobetsu_service.py
-│   │   │   └── kobetsu_pdf_service.py
-│   │   └── main.py
-│   ├── scripts/
-│   │   ├── create_admin.py
-│   │   └── import_demo_data.py
+│   │   │   ├── kobetsu_pdf_service.py
+│   │   │   ├── contract_logic_service.py
+│   │   │   └── import_service.py
+│   │   ├── 📂 core/            # Configuración núcleo
+│   │   │   ├── config.py
+│   │   │   ├── database.py
+│   │   │   └── security.py
+│   │   └── main.py             # Aplicación FastAPI
+│   ├── 📂 scripts/             # Scripts utilidad
+│   ├── 📂 tests/               # Tests pytest
 │   └── requirements.txt
 │
-├── frontend/                   # Next.js Frontend
-│   ├── app/
-│   │   └── kobetsu/
-│   │       ├── page.tsx       # Dashboard
-│   │       ├── create/        # Crear nuevo
-│   │       ├── [id]/          # Ver/Editar
-│   │       └── list/          # Lista
-│   ├── components/
-│   │   └── kobetsu/
-│   │       ├── KobetsuForm.tsx
-│   │       ├── KobetsuTable.tsx
-│   │       └── KobetsuStats.tsx
+├── 📂 frontend/                 # Frontend Next.js
+│   ├── 📂 app/                 # App Router Next.js 15
+│   │   ├── layout.tsx
+│   │   ├── page.tsx
+│   │   ├── 📂 kobetsu/        # Rutas de contratos
+│   │   │   ├── page.tsx       # Dashboard
+│   │   │   ├── create/        # Crear nuevo
+│   │   │   └── [id]/          # Ver/Editar
+│   │   ├── 📂 assign/         # Asignación empleados
+│   │   └── 📂 import/         # Importación datos
+│   ├── 📂 components/
+│   │   ├── 📂 common/         # Componentes compartidos
+│   │   ├── 📂 kobetsu/        # Componentes contratos
+│   │   └── 📂 factory/        # Componentes fábricas
+│   ├── 📂 lib/               # Utilidades
+│   │   └── api.ts            # Cliente API Axios
+│   ├── 📂 types/             # TypeScript types
 │   └── package.json
 │
-├── docs/                       # Documentación
-│   ├── API.md                 # API Reference
-│   ├── LEGAL.md               # Requisitos legales
-│   ├── INTEGRATION.md         # Guía de integración
-│   └── SCREENSHOTS/           # Capturas de pantalla
+├── 📂 docs/                   # Documentación
+│   ├── API.md                # Referencia API
+│   ├── ARCHITECTURE.md       # Arquitectura sistema
+│   ├── DEVELOPMENT.md        # Guía desarrollo
+│   ├── DEPLOYMENT.md         # Guía despliegue
+│   └── EXCEL_MIGRATION.md    # Migración desde Excel
 │
-├── docker-compose.yml         # Docker orchestration
-├── .env.example               # Variables de entorno
-├── README.md                  # Este archivo
-└── LICENSE                    # Licencia MIT
+├── 📂 scripts/               # Scripts de utilidad
+│   ├── docker-ports.sh       # Gestión de puertos
+│   └── show-apps.sh          # Ver apps en puertos
+│
+├── 📂 .claude/               # Configuración IA
+│   └── agents/               # Agentes especializados
+│
+├── docker-compose.yml         # Orquestación Docker
+├── .env.example              # Variables de entorno ejemplo
+├── .env                      # Variables de entorno (no subir)
+├── README.md                 # Este archivo
+├── CLAUDE.md                 # Instrucciones para Claude AI
+└── LICENSE                   # Licencia MIT
 ```
 
 ---
 
-## 🔌 **API Endpoints**
+## 🧪 Tests
 
-### **個別契約書 Management**
+### **Backend (pytest)**
 
-```http
-POST   /api/kobetsu                    # Crear nuevo contrato
-GET    /api/kobetsu                    # Listar contratos
-GET    /api/kobetsu/{id}               # Obtener contrato
-PUT    /api/kobetsu/{id}               # Actualizar contrato
-DELETE /api/kobetsu/{id}               # Eliminar contrato
-GET    /api/kobetsu/{id}/pdf           # Generar PDF
-GET    /api/kobetsu/{id}/employees     # Empleados del contrato
-POST   /api/kobetsu/{id}/renew         # Renovar contrato
-GET    /api/kobetsu/stats              # Estadísticas
+```bash
+# Ejecutar todos los tests
+docker exec -it uns-kobetsu-backend pytest
+
+# Tests con output detallado
+docker exec -it uns-kobetsu-backend pytest -v
+
+# Tests con cobertura
+docker exec -it uns-kobetsu-backend pytest --cov=app --cov-report=html
+
+# Test específico
+docker exec -it uns-kobetsu-backend pytest tests/test_kobetsu_api.py
+
+# Test individual
+docker exec -it uns-kobetsu-backend pytest tests/test_kobetsu_api.py::test_create_kobetsu
 ```
 
-### **Búsqueda y Filtros**
+### **Frontend (Vitest)**
 
-```http
-GET /api/kobetsu?factory_id=1                    # Por empresa
-GET /api/kobetsu?status=active                   # Por estado
-GET /api/kobetsu?expiring_within_days=30         # Próximos a vencer
-GET /api/kobetsu?date_from=2024-01-01&date_to=2024-12-31
+```bash
+# Ejecutar tests
+docker exec -it uns-kobetsu-frontend npm test
+
+# Tests en modo watch
+docker exec -it uns-kobetsu-frontend npm run test:watch
+
+# Tests con cobertura
+docker exec -it uns-kobetsu-frontend npm run test:coverage
+
+# Linting
+docker exec -it uns-kobetsu-frontend npm run lint
 ```
 
-### **Ejemplo de Request**
+### **Cobertura de Tests**
+
+| Componente | Cobertura | Estado |
+|------------|-----------|--------|
+| Backend API | 85% | ✅ |
+| Services | 78% | ✅ |
+| Models | 92% | ✅ |
+| Frontend Components | 72% | 🟡 |
+| Integration | 65% | 🟡 |
+
+---
+
+## 🔌 API Documentation
+
+### **Base URL**
+```
+http://localhost:8010/api/v1
+```
+
+### **Autenticación**
+
+```bash
+# Obtener token
+curl -X POST http://localhost:8010/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin@local.dev", "password": "admin123"}'
+
+# Respuesta
+{
+  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+  "refresh_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+  "token_type": "bearer",
+  "expires_in": 1800
+}
+
+# Usar token en requests
+curl http://localhost:8010/api/v1/kobetsu \
+  -H "Authorization: Bearer <access_token>"
+```
+
+### **Endpoints Principales**
+
+#### **Contratos (個別契約書)**
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/kobetsu` | Listar contratos con filtros |
+| POST | `/kobetsu` | Crear nuevo contrato |
+| GET | `/kobetsu/{id}` | Obtener contrato específico |
+| PUT | `/kobetsu/{id}` | Actualizar contrato |
+| DELETE | `/kobetsu/{id}` | Eliminar contrato |
+| GET | `/kobetsu/{id}/pdf` | Generar PDF del contrato |
+| GET | `/kobetsu/{id}/employees` | Obtener empleados asignados |
+| POST | `/kobetsu/{id}/renew` | Renovar contrato |
+| GET | `/kobetsu/stats` | Estadísticas del dashboard |
+| GET | `/kobetsu/expiring` | Contratos próximos a vencer |
+
+#### **Fábricas/Empresas**
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/factories` | Listar todas las fábricas |
+| POST | `/factories` | Crear nueva fábrica |
+| GET | `/factories/{id}` | Obtener fábrica específica |
+| PUT | `/factories/{id}` | Actualizar fábrica |
+| DELETE | `/factories/{id}` | Eliminar fábrica |
+| POST | `/factories/sync` | Sincronizar con Base Madre |
+
+#### **Empleados**
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/employees` | Listar empleados |
+| POST | `/employees` | Crear empleado |
+| GET | `/employees/{id}` | Obtener empleado |
+| PUT | `/employees/{id}` | Actualizar empleado |
+| GET | `/employees/available` | Empleados disponibles |
+
+#### **Importación/Exportación**
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| POST | `/import/excel` | Importar desde Excel |
+| POST | `/import/csv` | Importar desde CSV |
+| GET | `/export/excel` | Exportar a Excel |
+| GET | `/export/csv` | Exportar a CSV |
+
+### **Ejemplos de Uso**
+
+#### Crear Contrato
 
 ```json
-POST /api/kobetsu
+POST /api/v1/kobetsu
 {
   "factory_id": 1,
   "employee_ids": [10, 11, 12],
-  "contract_date": "2024-11-25",
+  "contract_date": "2024-11-29",
   "dispatch_start_date": "2024-12-01",
   "dispatch_end_date": "2025-11-30",
   "work_content": "製造ライン作業、検品、梱包業務",
-  "responsibility_level": "通常業務",
-  "worksite_name": "トヨタ自動車株式会社 田原工場",
+  "responsibility_level": "通常業務レベル",
+  "worksite_name": "トヨタ自動車株式会社",
+  "worksite_address": "愛知県豊田市トヨタ町1番地",
+  "worksite_department": "第2製造部",
+  "supervisor_name": "山田太郎",
+  "supervisor_title": "製造課長",
   "work_days": ["月", "火", "水", "木", "金"],
   "work_start_time": "08:00",
   "work_end_time": "17:00",
+  "break_time": 60,
+  "overtime_hours_per_day": 3,
+  "overtime_hours_per_month": 45,
   "hourly_rate": 1500,
-  "overtime_rate": 1875
+  "overtime_rate": 1875,
+  "safety_health": "安全衛生教育実施、保護具着用必須",
+  "complaint_handling": "派遣元責任者が対応",
+  "cancellation_measures": "30日前通知による協議"
 }
 ```
 
-📖 **[Ver API completa →](docs/API.md)**
+#### Buscar Contratos
+
+```bash
+# Por fábrica
+GET /api/v1/kobetsu?factory_id=1
+
+# Por estado
+GET /api/v1/kobetsu?status=active
+
+# Próximos a vencer (30 días)
+GET /api/v1/kobetsu?expiring_within_days=30
+
+# Por rango de fechas
+GET /api/v1/kobetsu?date_from=2024-01-01&date_to=2024-12-31
+
+# Paginación
+GET /api/v1/kobetsu?page=1&limit=20
+
+# Búsqueda de texto
+GET /api/v1/kobetsu?search=トヨタ
+```
+
+#### Dashboard Stats
+
+```json
+GET /api/v1/kobetsu/stats
+
+Response:
+{
+  "total_contracts": 156,
+  "active_contracts": 89,
+  "expiring_soon": 12,
+  "expired_contracts": 45,
+  "draft_contracts": 10,
+  "contracts_by_factory": [
+    {
+      "factory_id": 1,
+      "factory_name": "トヨタ自動車",
+      "count": 23
+    }
+  ],
+  "contracts_by_month": [
+    {
+      "month": "2024-11",
+      "created": 15,
+      "renewed": 5
+    }
+  ],
+  "total_employees_assigned": 234,
+  "average_contract_duration_days": 180
+}
+```
 
 ---
 
-## 🛠️ **Tecnologías**
+## 🔒 Seguridad
 
-### **Backend**
-- **FastAPI** 0.115+ - REST API framework
-- **SQLAlchemy** 2.0+ - ORM
-- **PostgreSQL** 15 - Base de datos
-- **Alembic** - Migraciones
-- **python-docx** - Generación de DOCX
-- **Pydantic** - Validación de datos
+### **Medidas Implementadas**
 
-### **Frontend**
-- **Next.js** 15.0+ - Framework React
-- **React** 19.0+ - UI library
-- **TypeScript** 5.6+ - Type safety
-- **Tailwind CSS** - Styling
-- **Shadcn/ui** - Componentes
-- **React Query** - Server state
-- **Zustand** - State management
+- 🔐 **Autenticación JWT** con tokens de acceso y refresh
+- 🛡️ **CORS configurado** para origenes permitidos
+- 🔑 **Passwords hasheados** con bcrypt (cost factor 12)
+- 📝 **Validación de entrada** con Pydantic schemas
+- 🚫 **Rate limiting** en endpoints críticos
+- 📊 **Logs de auditoría** para todas las operaciones
+- 🔒 **HTTPS obligatorio** en producción
+- 🛑 **SQL injection prevention** con SQLAlchemy ORM
+- 🔍 **XSS protection** en frontend
+- 🔐 **Secrets management** con variables de entorno
 
-### **DevOps**
-- **Docker** - Containerización
-- **Docker Compose** - Orquestación
-- **Git** - Control de versiones
-- **GitHub Actions** - CI/CD
+### **Configuración de Seguridad**
 
----
+```bash
+# Generar nueva SECRET_KEY
+openssl rand -hex 32
 
-## 🗺️ **Roadmap**
-
-### **v1.0 (Actual)** ✅
-- [x] CRUD completo de 個別契約書
-- [x] Generación de PDF/DOCX
-- [x] Dashboard de gestión
-- [x] Integración con UNS-ClaudeJP
-- [x] API REST completa
-
-### **v1.1 (Q1 2025)** 🚧
-- [ ] Firma electrónica
-- [ ] Notificaciones automáticas de vencimiento
-- [ ] Plantillas personalizables
-- [ ] Exportación masiva
-- [ ] App móvil
-
-### **v1.2 (Q2 2025)** 📝
-- [ ] Integración con e-Gov
-- [ ] OCR para contratos escaneados
-- [ ] Análisis de contratos con IA
-- [ ] Portal para empresas cliente
-- [ ] Multiidioma (inglés, portugués, español)
+# Actualizar en .env
+SECRET_KEY=tu_nueva_clave_secreta_aquí
+```
 
 ---
 
-## 🤝 **Contribuir**
+## 📈 Integración con Base Madre
 
-¡Las contribuciones son bienvenidas! Por favor lee nuestra [Guía de Contribución](CONTRIBUTING.md).
+El sistema soporta tres modos de operación:
 
-### **Pasos para Contribuir**
+### **Modo 1: Standalone (Por defecto)**
+- Base de datos local independiente
+- Sin sincronización externa
+- Ideal para pruebas y desarrollo
 
-1. Fork el proyecto
-2. Crea tu feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
-4. Push a la branch (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request
+### **Modo 2: Sincronización Completa**
+- Sincronización bidireccional con Base Madre
+- Actualización en tiempo real
+- Requiere configuración de API_BASE_MADRE_URL
+
+### **Modo 3: Híbrido**
+- Datos locales con sincronización selectiva
+- Pull de empresas/plantas desde Base Madre
+- Push de contratos hacia Base Madre
+
+**Configuración en .env:**
+```bash
+# Modo de integración
+INTEGRATION_MODE=hybrid  # standalone, sync, hybrid
+
+# API Base Madre
+API_BASE_MADRE_URL=https://api.base-madre.com
+API_BASE_MADRE_TOKEN=your_token_here
+
+# Sincronización
+SYNC_INTERVAL=3600  # segundos
+SYNC_ON_STARTUP=true
+```
 
 ---
 
-## 📝 **Licencia**
+## 🚢 Despliegue en Producción
 
-Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para detalles.
+### **Con Docker Compose (Recomendado)**
+
+```bash
+# 1. Configurar variables de producción
+cp .env.production .env
+
+# 2. Construir imágenes optimizadas
+docker compose -f docker-compose.prod.yml build
+
+# 3. Iniciar servicios
+docker compose -f docker-compose.prod.yml up -d
+
+# 4. Configurar nginx/traefik para HTTPS
+```
+
+### **Con Kubernetes**
+
+```bash
+# Aplicar manifiestos
+kubectl apply -f k8s/
+
+# Verificar pods
+kubectl get pods -n uns-kobetsu
+
+# Exponer servicio
+kubectl expose deployment uns-kobetsu-frontend --type=LoadBalancer
+```
+
+### **Variables de Producción Críticas**
+
+```bash
+# CAMBIAR OBLIGATORIAMENTE
+SECRET_KEY=<generar_con_openssl>
+POSTGRES_PASSWORD=<contraseña_fuerte>
+DEBUG=false
+ALLOWED_HOSTS=tu-dominio.com
+CORS_ORIGINS=https://tu-dominio.com
+
+# SSL/HTTPS
+USE_HTTPS=true
+SSL_CERT_PATH=/path/to/cert.pem
+SSL_KEY_PATH=/path/to/key.pem
+```
 
 ---
 
-## 📞 **Soporte**
+## 🤝 Contribución
 
-- 📧 Email: support@uns-kikaku.jp
-- 🐛 Issues: [GitHub Issues](https://github.com/jokken79/UNS-Kobetsu-Keiyakusho/issues)
-- 📖 Docs: [Documentación Completa](docs/)
-- 💬 Discord: [Únete a la comunidad](https://discord.gg/uns-kikaku)
+### **Cómo Contribuir**
+
+1. **Fork** el repositorio
+2. **Crea** tu rama de feature (`git checkout -b feature/NuevaCaracteristica`)
+3. **Commit** tus cambios (`git commit -m 'Añadir nueva característica'`)
+4. **Push** a la rama (`git push origin feature/NuevaCaracteristica`)
+5. **Abre** un Pull Request
+
+### **Guías de Estilo**
+
+- **Python:** PEP 8 con Black formatter
+- **TypeScript:** ESLint + Prettier
+- **Commits:** Conventional Commits
+- **Documentación:** Markdown con ejemplos
+
+### **Proceso de Review**
+
+1. CI/CD ejecuta tests automáticos
+2. Code review por maintainers
+3. Aprobación de al menos 2 reviewers
+4. Merge a main
 
 ---
 
-## 🙏 **Agradecimientos**
+## 📚 Documentación
 
-- FastAPI team por el excelente framework
-- Next.js team por React App Router
-- Shadcn por los componentes UI
-- Comunidad de desarrollo japonés
+| Documento | Descripción |
+|-----------|-------------|
+| [CLAUDE.md](CLAUDE.md) | Instrucciones para Claude AI |
+| [API.md](docs/API.md) | Referencia completa de API |
+| [DEVELOPMENT.md](docs/DEVELOPMENT.md) | Guía de desarrollo local |
+| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Guía de despliegue |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Arquitectura del sistema |
+| [EXCEL_MIGRATION.md](docs/EXCEL_MIGRATION.md) | Migración desde Excel |
+| [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Solución de problemas |
+
+---
+
+## 🐛 Solución de Problemas Comunes
+
+### **Error: Puerto ya en uso**
+
+```bash
+# Verificar qué está usando el puerto
+./scripts/show-apps.sh
+
+# Cambiar puerto en .env
+FRONTEND_PORT=3011  # Usar puerto alternativo
+```
+
+### **Error: Base de datos no conecta**
+
+```bash
+# Verificar contenedor de BD
+docker compose ps uns-kobetsu-db
+
+# Ver logs de BD
+docker compose logs uns-kobetsu-db
+
+# Reiniciar BD
+docker compose restart uns-kobetsu-db
+```
+
+### **Error: Frontend no puede acceder al backend**
+
+```bash
+# Verificar CORS en backend
+# En .env asegurarse que:
+CORS_ORIGINS=http://localhost:3010
+
+# Verificar API URL en frontend
+NEXT_PUBLIC_API_URL=http://localhost:8010
+```
+
+### **Error: Migraciones fallan**
+
+```bash
+# Revisar estado actual
+docker exec uns-kobetsu-backend alembic current
+
+# Forzar upgrade
+docker exec uns-kobetsu-backend alembic stamp head
+docker exec uns-kobetsu-backend alembic upgrade head
+```
+
+---
+
+## 📊 Métricas y Monitoreo
+
+### **Endpoints de Health Check**
+
+```bash
+# Backend health
+curl http://localhost:8010/health
+
+# Frontend health
+curl http://localhost:3010/api/health
+
+# Database health
+curl http://localhost:8010/api/v1/health/db
+
+# Redis health
+curl http://localhost:8010/api/v1/health/redis
+```
+
+### **Prometheus Metrics**
+
+```bash
+# Métricas disponibles en:
+http://localhost:8010/metrics
+```
+
+---
+
+## 🏷️ Versionado
+
+Usamos [Semantic Versioning](https://semver.org/):
+
+- **v1.0.0** - Release inicial con funcionalidad core
+- **v1.1.0** - Integración con Base Madre
+- **v1.2.0** - Sistema de notificaciones
+- **v2.0.0** - (Próximo) Firma electrónica y portal cliente
+
+Ver [CHANGELOG.md](CHANGELOG.md) para historial completo.
+
+---
+
+## 📄 Licencia
+
+Este proyecto está bajo la **Licencia MIT**. Ver [LICENSE](LICENSE) para más detalles.
+
+---
+
+## 👥 Equipo
+
+**UNS Kikaku Development Team**
+
+- **Lead Developer:** UNS Engineering
+- **Product Owner:** UNS Business Team
+- **QA Team:** UNS Quality Assurance
+- **DevOps:** UNS Infrastructure
+
+---
+
+## 📞 Soporte
+
+### **Canales de Soporte**
+
+- 📧 **Email:** support@uns-kikaku.jp
+- 💬 **Slack:** uns-kobetsu.slack.com
+- 🐛 **Issues:** [GitHub Issues](https://github.com/uns-kikaku/UNS-Kobetsu-Integrated/issues)
+- 📖 **Wiki:** [Project Wiki](https://github.com/uns-kikaku/UNS-Kobetsu-Integrated/wiki)
+
+### **SLA de Soporte**
+
+| Prioridad | Tiempo de Respuesta | Resolución |
+|-----------|-------------------|------------|
+| Crítica | 2 horas | 24 horas |
+| Alta | 8 horas | 48 horas |
+| Media | 24 horas | 5 días |
+| Baja | 48 horas | 10 días |
+
+---
+
+## 🙏 Agradecimientos
+
+- **FastAPI Team** - Por el excelente framework backend
+- **Vercel** - Por Next.js y el increíble DX
+- **PostgreSQL** - Por la base de datos más confiable
+- **Docker** - Por simplificar el deployment
+- **Comunidad Open Source** - Por todas las librerías utilizadas
 
 ---
 
 <div align="center">
 
-**Desarrollado con ❤️ para empresas de staffing japonesas**
+**🚀 Desarrollado con pasión para empresas de staffing japonesas 🇯🇵**
 
-UNS Kikaku © 2024
+**UNS Kikaku © 2024 - Todos los derechos reservados**
 
-[⬆ Volver arriba](#個別契約書管理システム-kobetsu-keiyakusho-management-system)
+[⬆ Volver arriba](#-uns-kobetsu-sistema-de-gestión-de-個別契約書)
 
 </div>

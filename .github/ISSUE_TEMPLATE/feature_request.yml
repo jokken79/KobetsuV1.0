@@ -1,0 +1,123 @@
+name: Feature Request
+description: Suggest an idea for this project
+title: "[FEATURE] "
+labels: ["enhancement", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new feature! Please fill out the information below to help us understand your request.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which component would this feature affect?
+      options:
+        - Backend (FastAPI)
+        - Frontend (Next.js)
+        - Database (PostgreSQL)
+        - Docker/Infrastructure
+        - Documentation
+        - CI/CD
+        - Excel Migration
+        - Document Generation
+        - Legal Compliance
+      multiple: true
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: Is your feature request related to a problem? Please describe.
+      placeholder: I'm always frustrated when...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the solution you'd like
+      placeholder: A clear and concise description of what you want to happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Describe any alternative solutions or features you've considered.
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How important is this feature to you?
+      options:
+        - Must have (blocking work)
+        - Should have (important)
+        - Nice to have (would improve experience)
+        - Future consideration
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use Case
+      description: Provide a specific use case or scenario where this feature would be beneficial.
+      placeholder: |
+        As a [type of user]
+        I want [goal]
+        So that [benefit]
+    validations:
+      required: true
+
+  - type: textarea
+    id: legal-compliance
+    attributes:
+      label: Legal Compliance Impact
+      description: If applicable, describe any impact on 労働者派遣法第26条 compliance or the 16 required contract fields.
+      placeholder: Leave blank if not applicable
+
+  - type: textarea
+    id: mockups
+    attributes:
+      label: Mockups/Examples
+      description: If applicable, add mockups, wireframes, or examples to help explain your feature.
+      placeholder: Drag and drop images here
+
+  - type: textarea
+    id: implementation
+    attributes:
+      label: Implementation Suggestions
+      description: If you have ideas on how this could be implemented, please share them.
+
+  - type: dropdown
+    id: breaking-change
+    attributes:
+      label: Breaking Change
+      description: Would this be a breaking change?
+      options:
+        - "No"
+        - "Yes"
+        - "Not sure"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I have searched for existing feature requests
+          required: true
+        - label: I have considered the implementation complexity
+          required: false
+        - label: I am willing to help implement this feature
+          required: false

@@ -13,6 +13,8 @@ from .imports import router as imports_router
 from .documents import router as documents_router
 from .settings import router as settings_router
 from .endpoints.sync import router as sync_router
+from .health import router as health_router
+from .stats import router as stats_router
 
 api_router = APIRouter()
 
@@ -69,4 +71,16 @@ api_router.include_router(
     settings_router,
     prefix="/settings",
     tags=["Settings (設定)"]
+)
+
+api_router.include_router(
+    health_router,
+    prefix="/health",
+    tags=["Health (ヘルスチェック)"]
+)
+
+api_router.include_router(
+    stats_router,
+    prefix="/stats",
+    tags=["Statistics (統計)"]
 )

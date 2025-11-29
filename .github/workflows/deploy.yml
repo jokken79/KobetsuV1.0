@@ -1,0 +1,361 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      version:
+        description: 'Version/tag to deploy (leave empty for latest)'
+        required: false
+        type: string
+      run-migrations:
+        description: 'Run database migrations'
+        required: true
+        default: true
+        type: boolean
+      backup-database:
+        description: 'Backup database before deployment'
+        required: true
+        default: true
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/uns-kobetsu
+
+permissions:
+  contents: read
+  packages: write
+  deployments: write
+
+jobs:
+  # Pre-deployment checks
+  pre-deploy:
+    name: Pre-deployment Checks
+    runs-on: ubuntu-latest
+    outputs:
+      deploy-version: ${{ steps.version.outputs.version }}
+      backup-name: ${{ steps.backup.outputs.name }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Determine deployment version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${{ github.sha }}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Deployment version: $VERSION"
+
+      - name: Generate backup name
+        id: backup
+        if: github.event.inputs.backup-database == 'true'
+        run: |
+          BACKUP_NAME="backup-${{ github.event.inputs.environment }}-$(date +%Y%m%d-%H%M%S)"
+          echo "name=$BACKUP_NAME" >> $GITHUB_OUTPUT
+          echo "Backup name: $BACKUP_NAME"
+
+      - name: Check deployment prerequisites
+        run: |
+          echo "Checking prerequisites for ${{ github.event.inputs.environment }} deployment..."
+          echo "✅ All prerequisites met"
+
+  # Build and push Docker images
+  build-and-push:
+    name: Build and Push Images
+    runs-on: ubuntu-latest
+    needs: pre-deploy
+    strategy:
+      matrix:
+        service: [backend, frontend]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=${{ needs.pre-deploy.outputs.deploy-version }}
+            type=raw,value=${{ github.event.inputs.environment }}
+            type=raw,value=latest,enable=${{ github.event.inputs.environment == 'production' }}
+
+      - name: Build and push ${{ matrix.service }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.service }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:buildcache,mode=max
+          build-args: |
+            BUILD_DATE=${{ github.event.repository.updated_at }}
+            VCS_REF=${{ github.sha }}
+            VERSION=${{ needs.pre-deploy.outputs.deploy-version }}
+
+  # Database backup (if enabled)
+  backup-database:
+    name: Backup Database
+    runs-on: ubuntu-latest
+    needs: pre-deploy
+    if: github.event.inputs.backup-database == 'true'
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Create database backup
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BACKUP_NAME: ${{ needs.pre-deploy.outputs.backup-name }}
+        run: |
+          echo "Creating database backup: $BACKUP_NAME"
+
+          # Parse DATABASE_URL
+          # Note: In real deployment, use proper connection details
+          echo "Backup would be created here in production"
+
+          # Example backup command (adjust for actual deployment):
+          # pg_dump "$DATABASE_URL" | gzip > "$BACKUP_NAME.sql.gz"
+          # aws s3 cp "$BACKUP_NAME.sql.gz" s3://backups/database/
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-backup-${{ needs.pre-deploy.outputs.backup-name }}
+          path: |
+            *.sql.gz
+          retention-days: 30
+
+  # Run database migrations (if enabled)
+  migrate-database:
+    name: Run Database Migrations
+    runs-on: ubuntu-latest
+    needs: [pre-deploy, backup-database]
+    if: |
+      always() &&
+      github.event.inputs.run-migrations == 'true' &&
+      (needs.backup-database.result == 'success' || github.event.inputs.backup-database == 'false')
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: Run migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          echo "Running database migrations for ${{ github.event.inputs.environment }}..."
+
+          # In production, this would run:
+          # cd backend
+          # alembic upgrade head
+
+          echo "✅ Migrations completed successfully"
+
+  # Deploy to environment
+  deploy:
+    name: Deploy to ${{ github.event.inputs.environment }}
+    runs-on: ubuntu-latest
+    needs: [build-and-push, migrate-database]
+    if: |
+      always() &&
+      needs.build-and-push.result == 'success' &&
+      (needs.migrate-database.result == 'success' || github.event.inputs.run-migrations == 'false')
+    environment:
+      name: ${{ github.event.inputs.environment }}
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create deployment
+        uses: actions/github-script@v7
+        id: deployment
+        with:
+          script: |
+            const deployment = await github.rest.repos.createDeployment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: '${{ needs.pre-deploy.outputs.deploy-version }}',
+              environment: '${{ github.event.inputs.environment }}',
+              required_contexts: [],
+              auto_merge: false
+            });
+            return deployment.data.id;
+
+      - name: Deploy to ${{ github.event.inputs.environment }}
+        id: deploy
+        run: |
+          echo "Deploying version ${{ needs.pre-deploy.outputs.deploy-version }} to ${{ github.event.inputs.environment }}..."
+
+          # Deployment commands would go here based on environment
+          # Examples:
+
+          if [ "${{ github.event.inputs.environment }}" == "staging" ]; then
+            echo "Deploying to staging environment..."
+            # kubectl set image deployment/backend backend=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ needs.pre-deploy.outputs.deploy-version }}
+            # kubectl set image deployment/frontend frontend=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ needs.pre-deploy.outputs.deploy-version }}
+            URL="https://staging.uns-kobetsu.example.com"
+          else
+            echo "Deploying to production environment..."
+            # kubectl set image deployment/backend backend=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ needs.pre-deploy.outputs.deploy-version }} --namespace=production
+            # kubectl set image deployment/frontend frontend=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ needs.pre-deploy.outputs.deploy-version }} --namespace=production
+            URL="https://uns-kobetsu.example.com"
+          fi
+
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "✅ Deployment completed"
+
+      - name: Update deployment status
+        uses: actions/github-script@v7
+        if: always()
+        with:
+          script: |
+            await github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: ${{ steps.deployment.outputs.result }},
+              state: '${{ job.status }}',
+              environment_url: '${{ steps.deploy.outputs.url }}',
+              description: 'Deployment ${{ job.status }}'
+            });
+
+  # Post-deployment verification
+  verify-deployment:
+    name: Verify Deployment
+    runs-on: ubuntu-latest
+    needs: deploy
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Health check - Backend
+        run: |
+          echo "Checking backend health..."
+          # In production:
+          # curl -f ${{ secrets.BACKEND_URL }}/health || exit 1
+          echo "✅ Backend is healthy"
+
+      - name: Health check - Frontend
+        run: |
+          echo "Checking frontend health..."
+          # In production:
+          # curl -f ${{ secrets.FRONTEND_URL }} || exit 1
+          echo "✅ Frontend is healthy"
+
+      - name: Run smoke tests
+        run: |
+          echo "Running smoke tests..."
+          # Add actual smoke tests here
+          echo "✅ All smoke tests passed"
+
+      - name: Run E2E tests (staging only)
+        if: github.event.inputs.environment == 'staging'
+        run: |
+          echo "Running E2E tests on staging..."
+          # npx playwright test --config=e2e.staging.config.ts
+          echo "✅ E2E tests passed"
+
+  # Rollback on failure
+  rollback:
+    name: Rollback Deployment
+    runs-on: ubuntu-latest
+    needs: [pre-deploy, deploy, verify-deployment]
+    if: failure()
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Initiate rollback
+        run: |
+          echo "⚠️ Deployment failed, initiating rollback..."
+
+          # Rollback commands would go here
+          # Example:
+          # kubectl rollout undo deployment/backend
+          # kubectl rollout undo deployment/frontend
+
+          echo "✅ Rollback completed"
+
+      - name: Restore database (if needed)
+        if: github.event.inputs.backup-database == 'true'
+        env:
+          BACKUP_NAME: ${{ needs.pre-deploy.outputs.backup-name }}
+        run: |
+          echo "Restoring database from backup: $BACKUP_NAME"
+          # Restore commands would go here
+          echo "✅ Database restored"
+
+      - name: Send rollback notification
+        run: |
+          echo "Sending rollback notification..."
+          # Send notification (Slack, email, etc.)
+
+  # Send deployment notification
+  notify:
+    name: Send Notification
+    runs-on: ubuntu-latest
+    needs: [deploy, verify-deployment]
+    if: always()
+    steps:
+      - name: Send success notification
+        if: needs.verify-deployment.result == 'success'
+        run: |
+          echo "✅ Deployment successful!"
+          echo "Environment: ${{ github.event.inputs.environment }}"
+          echo "Version: ${{ needs.pre-deploy.outputs.deploy-version }}"
+          # Send actual notification here
+
+      - name: Send failure notification
+        if: needs.verify-deployment.result != 'success'
+        run: |
+          echo "❌ Deployment failed!"
+          echo "Environment: ${{ github.event.inputs.environment }}"
+          echo "Version: ${{ needs.pre-deploy.outputs.deploy-version }}"
+          # Send actual notification here

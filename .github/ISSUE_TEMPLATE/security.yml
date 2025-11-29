@@ -1,0 +1,135 @@
+name: Security Vulnerability
+description: Report a security vulnerability (for non-sensitive issues only)
+title: "[SECURITY] "
+labels: ["security", "priority-high"]
+assignees: ["security-team"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ⚠️ **IMPORTANT: For sensitive security vulnerabilities, please do NOT use this form.**
+        Instead, please email security@example.com with details.
+
+        This form is for non-sensitive security improvements and concerns only.
+
+  - type: dropdown
+    id: vulnerability-type
+    attributes:
+      label: Type of Security Issue
+      options:
+        - Authentication/Authorization
+        - Data Exposure
+        - Injection (SQL, NoSQL, Command)
+        - Cross-Site Scripting (XSS)
+        - Cross-Site Request Forgery (CSRF)
+        - Security Misconfiguration
+        - Sensitive Data Storage
+        - Insufficient Logging
+        - Dependency Vulnerability
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      options:
+        - Backend API
+        - Frontend Application
+        - Database
+        - Docker Configuration
+        - CI/CD Pipeline
+        - Dependencies
+      multiple: true
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Describe the security issue (without exposing sensitive details)
+      placeholder: Provide a clear description of the security concern
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Potential Impact
+      description: What could happen if this vulnerability is exploited?
+      placeholder: Describe the potential impact on the system and users
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity Assessment
+      description: Based on CVSS scoring
+      options:
+        - Critical (9.0-10.0)
+        - High (7.0-8.9)
+        - Medium (4.0-6.9)
+        - Low (0.1-3.9)
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce (if applicable)
+      description: How can this issue be reproduced? (Be careful not to expose sensitive information)
+      placeholder: |
+        1. Step one
+        2. Step two
+        3. ...
+
+  - type: textarea
+    id: mitigation
+    attributes:
+      label: Suggested Mitigation
+      description: If you have suggestions on how to fix this issue
+      placeholder: Describe potential fixes or workarounds
+
+  - type: dropdown
+    id: affected-data
+    attributes:
+      label: Affected Data Types
+      description: What type of data could be compromised?
+      options:
+        - User credentials
+        - Personal information (PII)
+        - Contract data
+        - System configuration
+        - None
+        - Other
+      multiple: true
+
+  - type: dropdown
+    id: exploitability
+    attributes:
+      label: Exploitability
+      description: How easy is it to exploit this vulnerability?
+      options:
+        - Very Easy (no special access or tools needed)
+        - Easy (basic tools/access needed)
+        - Moderate (some expertise required)
+        - Difficult (significant expertise required)
+        - Very Difficult (highly specialized knowledge required)
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Disclosure Checklist
+      options:
+        - label: This is a non-sensitive security issue suitable for public discussion
+          required: true
+        - label: I have not included any passwords, tokens, or sensitive data
+          required: true
+        - label: I understand that critical vulnerabilities should be reported privately
+          required: true
