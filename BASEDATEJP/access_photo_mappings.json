@@ -1,0 +1,11 @@
+{
+  "timestamp": "2025-11-09T22:39:43.735912",
+  "source": "direct_access_extraction",
+  "database": "d:\\UNS-ClaudeJP-5.4\\BASEDATEJP\\ユニバーサル企画㈱データベースv25.3.24.accdb",
+  "statistics": {
+    "total_records": 1148,
+    "with_photos": 0,
+    "total_mappings": 0
+  },
+  "mappings": {}
+}

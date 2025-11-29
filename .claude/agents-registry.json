@@ -1,0 +1,308 @@
+{
+  "version": "2.0.0",
+  "description": "Registry de agentes elite para UNS-Kobetsu Keiyakusho Management System",
+  "lastUpdated": "2025-11-27",
+  "project": {
+    "name": "UNS-Kobetsu-Keiyakusho",
+    "purpose": "Managing 個別契約書 (individual dispatch contracts) for Japanese Labor Law compliance",
+    "stack": {
+      "backend": ["FastAPI", "SQLAlchemy", "PostgreSQL", "Redis", "Alembic"],
+      "frontend": ["Next.js 15", "React 18", "TypeScript", "Tailwind CSS", "Zustand"]
+    }
+  },
+
+  "agents": {
+    "core": {
+      "description": "Agentes fundamentales del sistema de orquestación",
+      "agents": [
+        {
+          "name": "planner",
+          "model": "opus",
+          "file": "agents/planner.md",
+          "keywords": ["planificar", "plan", "estrategia", "workflow", "orquestar", "decidir agentes"],
+          "invoke_when": "AL INICIO de cualquier tarea compleja para decidir qué agentes usar"
+        },
+        {
+          "name": "architect",
+          "model": "opus",
+          "file": "agents/architect.md",
+          "keywords": ["arquitectura", "diseño", "estructura", "sistema", "escalabilidad", "patrones"],
+          "invoke_when": "Al inicio de proyectos o antes de cambios estructurales"
+        },
+        {
+          "name": "critic",
+          "model": "opus",
+          "file": "agents/critic.md",
+          "keywords": ["cuestionar", "revisar", "validar", "alternativas", "problemas", "fallas"],
+          "invoke_when": "ANTES de implementar cambios importantes o riesgosos"
+        },
+        {
+          "name": "explorer",
+          "model": "opus",
+          "file": "agents/explorer.md",
+          "keywords": ["explorar", "buscar", "investigar", "dependencias", "código existente"],
+          "invoke_when": "ANTES de modificar cualquier código existente"
+        },
+        {
+          "name": "memory",
+          "model": "opus",
+          "file": "agents/memory.md",
+          "keywords": ["recordar", "decisiones", "historia", "contexto", "sesión anterior"],
+          "invoke_when": "AL INICIO de cada sesión y ANTES de decisiones importantes"
+        },
+        {
+          "name": "coder",
+          "model": "sonnet",
+          "file": "agents/coder.md",
+          "keywords": ["implementar", "código", "escribir", "crear", "programar"],
+          "invoke_when": "Para implementar tareas específicas del todo list"
+        },
+        {
+          "name": "tester",
+          "model": "sonnet",
+          "file": "agents/tester.md",
+          "keywords": ["test", "probar", "verificar", "pytest", "vitest", "qa"],
+          "invoke_when": "DESPUÉS de cada implementación de coder"
+        },
+        {
+          "name": "stuck",
+          "model": "sonnet",
+          "file": "agents/stuck.md",
+          "keywords": ["error", "problema", "bloqueado", "ayuda", "decisión humana"],
+          "invoke_when": "Cuando cualquier agente encuentre un problema irresoluble"
+        }
+      ]
+    },
+
+    "quality": {
+      "description": "Agentes de calidad, seguridad y mantenimiento",
+      "agents": [
+        {
+          "name": "security",
+          "model": "opus",
+          "file": "agents/security.md",
+          "keywords": ["seguridad", "vulnerabilidad", "owasp", "xss", "sql injection", "auth", "jwt"],
+          "invoke_when": "ANTES de deployments y cuando se manejen datos sensibles"
+        },
+        {
+          "name": "debugger",
+          "model": "opus",
+          "file": "agents/debugger.md",
+          "keywords": ["bug", "error", "debug", "stack trace", "falla", "crash", "exception"],
+          "invoke_when": "Cuando hay errores, comportamiento inesperado, o tests fallando"
+        },
+        {
+          "name": "reviewer",
+          "model": "opus",
+          "file": "agents/reviewer.md",
+          "keywords": ["code review", "calidad", "clean code", "solid", "best practices"],
+          "invoke_when": "DESPUÉS de que coder termine y ANTES de merge/deploy"
+        },
+        {
+          "name": "performance",
+          "model": "opus",
+          "file": "agents/performance.md",
+          "keywords": ["rendimiento", "lento", "optimizar", "velocidad", "memoria", "cpu", "cache"],
+          "invoke_when": "Cuando la aplicación es lenta o necesita escalar"
+        }
+      ]
+    },
+
+    "domain": {
+      "description": "Agentes especializados por dominio técnico",
+      "agents": [
+        {
+          "name": "frontend",
+          "model": "opus",
+          "file": "agents/frontend.md",
+          "keywords": ["react", "next.js", "typescript", "tailwind", "ui", "componente", "interfaz"],
+          "invoke_when": "Para cualquier tarea de interfaz de usuario"
+        },
+        {
+          "name": "backend",
+          "model": "opus",
+          "file": "agents/backend.md",
+          "keywords": ["fastapi", "python", "api", "rest", "endpoint", "service", "sqlalchemy"],
+          "invoke_when": "Para cualquier lógica del lado del servidor"
+        },
+        {
+          "name": "database",
+          "model": "opus",
+          "file": "agents/database.md",
+          "keywords": ["sql", "postgres", "query", "migration", "alembic", "schema", "index"],
+          "invoke_when": "Para cualquier tarea de base de datos"
+        },
+        {
+          "name": "data-sync",
+          "model": "opus",
+          "file": "agents/data-sync.md",
+          "keywords": ["excel", "csv", "import", "export", "sync", "migrar", "etl", "pandas"],
+          "invoke_when": "Para sincronización de datos con Excel o sistemas externos"
+        },
+        {
+          "name": "devops",
+          "model": "opus",
+          "file": "agents/devops.md",
+          "keywords": ["docker", "compose", "ci", "cd", "deploy", "container", "nginx"],
+          "invoke_when": "Para infraestructura, deployment, o configuración Docker"
+        },
+        {
+          "name": "api-designer",
+          "model": "opus",
+          "file": "agents/api-designer.md",
+          "keywords": ["openapi", "swagger", "rest design", "api design", "endpoint design"],
+          "invoke_when": "Para diseñar contratos de API ANTES de implementar"
+        },
+        {
+          "name": "migrator",
+          "model": "opus",
+          "file": "agents/migrator.md",
+          "keywords": ["migración", "upgrade", "breaking change", "versión", "transición"],
+          "invoke_when": "Para migraciones de frameworks, versiones o datos"
+        },
+        {
+          "name": "docs-writer",
+          "model": "opus",
+          "file": "agents/docs-writer.md",
+          "keywords": ["documentación", "readme", "api docs", "changelog", "guía"],
+          "invoke_when": "Para crear o actualizar documentación"
+        }
+      ]
+    }
+  },
+
+  "routing": {
+    "description": "Reglas de routing automático basadas en keywords",
+    "rules": [
+      {
+        "pattern": "planificar|plan|workflow|qué agentes|estrategia",
+        "agent": "planner",
+        "priority": 0
+      },
+      {
+        "pattern": "excel|xls|xlsx|spreadsheet|importar datos",
+        "agent": "data-sync",
+        "priority": 1
+      },
+      {
+        "pattern": "react|next\\.?js|componente|ui|interfaz|tailwind|frontend",
+        "agent": "frontend",
+        "priority": 1
+      },
+      {
+        "pattern": "fastapi|api|endpoint|rest|servidor|backend|service",
+        "agent": "backend",
+        "priority": 1
+      },
+      {
+        "pattern": "sql|postgres|query|migration|alembic|tabla|base.?de.?datos",
+        "agent": "database",
+        "priority": 1
+      },
+      {
+        "pattern": "docker|compose|deploy|container|infraestructura",
+        "agent": "devops",
+        "priority": 1
+      },
+      {
+        "pattern": "openapi|swagger|api.?design|diseño.?api",
+        "agent": "api-designer",
+        "priority": 1
+      },
+      {
+        "pattern": "migración|upgrade|breaking.?change|versión",
+        "agent": "migrator",
+        "priority": 1
+      },
+      {
+        "pattern": "documentación|readme|docs|changelog",
+        "agent": "docs-writer",
+        "priority": 1
+      },
+      {
+        "pattern": "seguridad|vulnerabilidad|owasp|auth|jwt|xss|injection",
+        "agent": "security",
+        "priority": 2
+      },
+      {
+        "pattern": "bug|error|debug|crash|exception|falla",
+        "agent": "debugger",
+        "priority": 2
+      },
+      {
+        "pattern": "lento|rendimiento|optimizar|performance|cache",
+        "agent": "performance",
+        "priority": 2
+      },
+      {
+        "pattern": "review|calidad|clean|solid",
+        "agent": "reviewer",
+        "priority": 2
+      },
+      {
+        "pattern": "test|probar|pytest|vitest|verificar",
+        "agent": "tester",
+        "priority": 3
+      }
+    ]
+  },
+
+  "workflows": {
+    "description": "Workflows predefinidos para tareas comunes en UNS-Kobetsu",
+    "templates": {
+      "new_feature": {
+        "description": "Implementar una nueva funcionalidad",
+        "steps": ["memory", "planner", "explorer", "architect", "critic", "coder", "tester", "reviewer", "memory"]
+      },
+      "bug_fix": {
+        "description": "Corregir un bug",
+        "steps": ["memory", "explorer", "debugger", "coder", "tester", "memory"]
+      },
+      "excel_import": {
+        "description": "Importar datos desde Excel",
+        "steps": ["memory", "data-sync", "database", "tester", "memory"]
+      },
+      "new_api_endpoint": {
+        "description": "Crear un nuevo endpoint de API",
+        "steps": ["memory", "explorer", "api-designer", "critic", "backend", "tester", "reviewer", "memory"]
+      },
+      "new_ui_component": {
+        "description": "Crear un componente de interfaz",
+        "steps": ["memory", "explorer", "frontend", "tester", "reviewer", "memory"]
+      },
+      "database_migration": {
+        "description": "Crear migración de base de datos",
+        "steps": ["memory", "explorer", "database", "critic", "coder", "tester", "memory"]
+      },
+      "contract_document": {
+        "description": "Nuevo tipo de documento (PDF/DOCX)",
+        "steps": ["memory", "explorer", "architect", "backend", "frontend", "tester", "reviewer", "memory"]
+      },
+      "security_audit": {
+        "description": "Auditoría de seguridad",
+        "steps": ["memory", "security", "reviewer", "docs-writer", "memory"]
+      },
+      "performance_optimization": {
+        "description": "Optimizar rendimiento",
+        "steps": ["memory", "performance", "coder", "tester", "performance", "memory"]
+      },
+      "deployment": {
+        "description": "Desplegar a producción",
+        "steps": ["memory", "security", "devops", "tester", "memory"]
+      }
+    }
+  },
+
+  "statistics": {
+    "total_agents": 19,
+    "by_model": {
+      "opus": 16,
+      "sonnet": 3
+    },
+    "by_category": {
+      "core": 8,
+      "quality": 4,
+      "domain": 7
+    }
+  }
+}

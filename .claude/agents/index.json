@@ -1,0 +1,183 @@
+{
+  "version": "1.0.0",
+  "description": "Index of all Claude Code agents for UNS-Kobetsu project",
+  "total_agents": 18,
+  "categories": {
+    "workflow": {
+      "description": "Core development workflow agents",
+      "agents": [
+        {
+          "name": "detective",
+          "file": "detective.md",
+          "purpose": "Deep codebase investigation before modifications",
+          "when_to_use": "Before modifying unfamiliar code, debugging mysteries",
+          "tools": ["Read", "Glob", "Grep", "Bash", "Task"]
+        },
+        {
+          "name": "architect",
+          "file": "architect.md",
+          "purpose": "System design and architecture planning",
+          "when_to_use": "New features, major refactors, system integration",
+          "tools": ["Read", "Glob", "Grep", "Bash", "Task"]
+        },
+        {
+          "name": "critic",
+          "file": "critic.md",
+          "purpose": "Challenge decisions and find flaws before implementation",
+          "when_to_use": "Before implementing any significant feature",
+          "tools": ["Read", "Glob", "Grep", "Bash", "Task"]
+        },
+        {
+          "name": "coder",
+          "file": "coder.md",
+          "purpose": "Implement code for specific tasks",
+          "when_to_use": "When a coding task needs implementation",
+          "tools": ["Read", "Write", "Edit", "Glob", "Grep", "Bash", "Task"]
+        },
+        {
+          "name": "reviewer",
+          "file": "reviewer.md",
+          "purpose": "Code quality review (SOLID, clean code, best practices)",
+          "when_to_use": "After coder completes implementation",
+          "tools": ["Read", "Glob", "Grep", "Bash", "Task"]
+        },
+        {
+          "name": "security",
+          "file": "security.md",
+          "purpose": "Vulnerability scanning (OWASP, injections, secrets)",
+          "when_to_use": "After implementation, before deployment",
+          "tools": ["Read", "Glob", "Grep", "Bash", "Task"]
+        },
+        {
+          "name": "tester",
+          "file": "tester.md",
+          "purpose": "Visual testing with Playwright MCP",
+          "when_to_use": "After implementation to verify UI/UX",
+          "tools": ["Task", "Read", "Bash"]
+        },
+        {
+          "name": "stuck",
+          "file": "stuck.md",
+          "purpose": "Human escalation when any agent encounters problems",
+          "when_to_use": "When any agent hits an error or uncertainty",
+          "tools": ["AskUserQuestion", "Read", "Bash", "Glob", "Grep"]
+        }
+      ]
+    },
+    "domain_specialists": {
+      "description": "Technology-specific experts",
+      "agents": [
+        {
+          "name": "frontend",
+          "file": "frontend.md",
+          "purpose": "Next.js, React, TypeScript, Tailwind CSS expert",
+          "when_to_use": "UI components, pages, styling, React hooks",
+          "tools": ["Read", "Write", "Edit", "Glob", "Grep", "Bash"]
+        },
+        {
+          "name": "backend",
+          "file": "backend.md",
+          "purpose": "FastAPI, Python, SQLAlchemy expert",
+          "when_to_use": "API endpoints, services, business logic",
+          "tools": ["Read", "Write", "Edit", "Glob", "Grep", "Bash"]
+        },
+        {
+          "name": "database",
+          "file": "database.md",
+          "purpose": "PostgreSQL, SQL, Alembic migrations expert",
+          "when_to_use": "Queries, schemas, migrations, optimization",
+          "tools": ["Read", "Write", "Edit", "Glob", "Grep", "Bash"]
+        },
+        {
+          "name": "api",
+          "file": "api.md",
+          "purpose": "REST API design, OpenAPI/Swagger specialist",
+          "when_to_use": "API design, endpoints, documentation",
+          "tools": ["Read", "Write", "Edit", "Glob", "Grep", "Bash"]
+        }
+      ]
+    },
+    "task_specialists": {
+      "description": "Task-specific experts",
+      "agents": [
+        {
+          "name": "debugger",
+          "file": "debugger.md",
+          "purpose": "Bug hunting, error tracing, fix implementation",
+          "when_to_use": "When bugs occur, test failures, production issues",
+          "tools": ["Read", "Write", "Edit", "Glob", "Grep", "Bash", "Task"]
+        },
+        {
+          "name": "devops",
+          "file": "devops.md",
+          "purpose": "Docker, CI/CD, deployment, infrastructure",
+          "when_to_use": "Deployment, containers, pipelines, monitoring",
+          "tools": ["Read", "Write", "Edit", "Glob", "Grep", "Bash"]
+        },
+        {
+          "name": "planner",
+          "file": "planner.md",
+          "purpose": "Strategic project planning, task breakdown",
+          "when_to_use": "Large features, project kickoff, roadmapping",
+          "tools": ["Read", "Glob", "Grep", "Bash", "Task", "TodoWrite"]
+        },
+        {
+          "name": "documenter",
+          "file": "documenter.md",
+          "purpose": "Auto-generate documentation, READMEs, API docs",
+          "when_to_use": "After implementation, before release",
+          "tools": ["Read", "Write", "Edit", "Glob", "Grep"]
+        }
+      ]
+    },
+    "project_specialists": {
+      "description": "UNS-Kobetsu specific experts",
+      "agents": [
+        {
+          "name": "excel-migrator",
+          "file": "excel-migrator.md",
+          "purpose": "Excel/Access analysis and PostgreSQL migration",
+          "when_to_use": "Importing Excel data, Access migration, data sync",
+          "tools": ["Read", "Write", "Edit", "Glob", "Grep", "Bash", "Task"]
+        },
+        {
+          "name": "playwright",
+          "file": "playwright.md",
+          "purpose": "Advanced E2E testing with Playwright",
+          "when_to_use": "E2E tests, browser automation, visual regression",
+          "tools": ["Read", "Write", "Edit", "Bash", "Task"]
+        }
+      ]
+    }
+  },
+  "workflow_recommendation": {
+    "new_feature": ["planner", "detective", "architect", "critic", "coder", "reviewer", "security", "tester"],
+    "bug_fix": ["detective", "debugger", "coder", "tester"],
+    "frontend_task": ["frontend", "coder", "reviewer", "tester"],
+    "backend_task": ["backend", "database", "coder", "reviewer", "security"],
+    "api_design": ["api", "architect", "critic", "coder", "documenter"],
+    "data_migration": ["excel-migrator", "database", "coder", "tester"],
+    "deployment": ["devops", "security", "tester"],
+    "documentation": ["documenter", "api"]
+  },
+  "quick_reference": {
+    "investigate_code": "detective",
+    "design_system": "architect",
+    "challenge_decisions": "critic",
+    "write_code": "coder",
+    "review_quality": "reviewer",
+    "check_security": "security",
+    "visual_testing": "tester",
+    "need_help": "stuck",
+    "react_nextjs": "frontend",
+    "fastapi_python": "backend",
+    "postgresql_sql": "database",
+    "rest_api": "api",
+    "fix_bugs": "debugger",
+    "docker_cicd": "devops",
+    "project_planning": "planner",
+    "write_docs": "documenter",
+    "excel_access_migration": "excel-migrator",
+    "e2e_testing": "playwright"
+  }
+}

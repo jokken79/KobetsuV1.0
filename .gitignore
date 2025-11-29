@@ -1,0 +1,150 @@
+# ================================
+# Python
+# ================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+# But keep frontend/lib (API client)
+!frontend/lib/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# PyCharm
+.idea/
+
+# VS Code
+.vscode/
+
+# Alembic
+alembic/__pycache__/
+
+# ================================
+# Node.js / Next.js
+# ================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Next.js
+.next/
+out/
+.swc/
+
+# Production
+build/
+dist/
+
+# ================================
+# Environment Variables
+# ================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ================================
+# Database
+# ================================
+*.db
+*.sqlite
+*.sqlite3
+postgres_data/
+
+# ================================
+# Docker
+# ================================
+docker-compose.override.yml
+
+# ================================
+# Logs
+# ================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# ================================
+# OS
+# ================================
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# ================================
+# Generated Files
+# ================================
+outputs/
+uploads/
+temp/
+tmp/
+*.pdf
+*.docx
+*.xlsx
+
+# ================================
+# Testing
+# ================================
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+.hypothesis/
+
+# ================================
+# IDEs
+# ================================
+*.sublime-project
+*.sublime-workspace
+.vscode/
+.idea/
+
+# ================================
+# Backup files
+# ================================
+*.bak
+*.backup
+*~
+
+# ================================
+# Redis
+# ================================
+redis_data/
+dump.rdb
+
+# ================================
+# Misc
+# ================================
+.cache/
+*.pid
+*.seed
+*.pid.lock
+.husky/

@@ -1,0 +1,357 @@
+{
+  "total_factories": 39,
+  "last_updated": "2025-11-28 09:56:24",
+  "factories": [
+    {
+      "factory_id": "瑞陵精機株式会社_恵那工場",
+      "client_company": "\t瑞陵精機株式会社",
+      "plant_name": "恵那工場",
+      "company_address": "岐阜県恵那市武並町新竹折８９番地",
+      "plant_address": "岐阜県恵那市武並町新竹折８９番地",
+      "company_phone": "(0573)28-3153",
+      "plant_phone": "(0573)28-3153"
+    },
+    {
+      "factory_id": "PATEC株式会社_本社工場",
+      "client_company": "PATEC株式会社",
+      "plant_name": "本社工場",
+      "company_address": "山口県防府市大字浜方534番地20",
+      "plant_address": "山口県防府市大字浜方534番地20",
+      "company_phone": "0835-25-2550",
+      "plant_phone": "0835-26-0020"
+    },
+    {
+      "factory_id": "アサヒフォージ株式会社_真庭工場",
+      "client_company": "アサヒフォージ株式会社",
+      "plant_name": "真庭工場",
+      "company_address": "岡山県真庭市上河内3828-9",
+      "plant_address": "岡山県真庭市上河内3828-9",
+      "company_phone": "0867-42-8786",
+      "plant_phone": "0867-42-8786"
+    },
+    {
+      "factory_id": "コーリツ株式会社_乙川工場",
+      "client_company": "コーリツ株式会社",
+      "plant_name": "乙川工場",
+      "company_address": "愛知県刈谷市小垣江町本郷下33番地3",
+      "plant_address": "愛知県半田市乙川町",
+      "company_phone": "0566-21-5139",
+      "plant_phone": ""
+    },
+    {
+      "factory_id": "コーリツ株式会社_州の崎工場",
+      "client_company": "コーリツ株式会社",
+      "plant_name": "州の崎工場",
+      "company_address": "愛知県刈谷市小垣江町本郷下33番地3",
+      "plant_address": "愛知県半田市州の崎町2-171",
+      "company_phone": "0566-21-5139",
+      "plant_phone": "0569-20-0332"
+    },
+    {
+      "factory_id": "コーリツ株式会社_本社工場",
+      "client_company": "コーリツ株式会社",
+      "plant_name": "本社工場",
+      "company_address": "愛知県刈谷市小垣江町本郷下33番地3",
+      "plant_address": "愛知県刈谷市小垣江町本郷下33番地3",
+      "company_phone": "0566-21-5139",
+      "plant_phone": "0566-21-5139"
+    },
+    {
+      "factory_id": "コーリツ株式会社_亀崎工場",
+      "client_company": "コーリツ株式会社",
+      "plant_name": "亀崎工場",
+      "company_address": "愛知県刈谷市小垣江町本郷下33番地3",
+      "plant_address": "愛知県半田市亀崎新田町5丁目13番地1",
+      "company_phone": "0566-21-5139",
+      "plant_phone": "0569-29-3771"
+    },
+    {
+      "factory_id": "セイビテック株式会社_",
+      "client_company": "セイビテック株式会社",
+      "plant_name": "",
+      "company_address": "岡山県井原市高屋町266-1",
+      "plant_address": "",
+      "company_phone": "0866-67-3130",
+      "plant_phone": ""
+    },
+    {
+      "factory_id": "ティーケーエンジニアリング株式会社_海南第二工場",
+      "client_company": "ティーケーエンジニアリング株式会社",
+      "plant_name": "海南第二工場",
+      "company_address": "愛知県弥富市楠三丁目13番地2",
+      "plant_address": "愛知県弥富市六條町大崎11番地1",
+      "company_phone": "0567-68-8110",
+      "plant_phone": "0567-56-6711"
+    },
+    {
+      "factory_id": "ピーエムアイ有限会社_本社工場",
+      "client_company": "ピーエムアイ有限会社",
+      "plant_name": "本社工場",
+      "company_address": "愛知県豊田市神池町2丁目1236番地643",
+      "plant_address": "愛知県豊田市神池町2丁目1236番地643",
+      "company_phone": "0565-80-0037",
+      "plant_phone": "0565-80-0037"
+    },
+    {
+      "factory_id": "フェニテックセミコンダクター(株)_鹿児島工場",
+      "client_company": "フェニテックセミコンダクター(株)",
+      "plant_name": "鹿児島工場",
+      "company_address": "岡山県井原市木之子町6833番地",
+      "plant_address": "鹿児島県姶良郡湧水町北方1770番地1",
+      "company_phone": "0866-62-4121",
+      "plant_phone": "0995-74-3611"
+    },
+    {
+      "factory_id": "フェニテックセミコンダクター株式会社_岡山工場",
+      "client_company": "フェニテックセミコンダクター株式会社",
+      "plant_name": "岡山工場",
+      "company_address": "岡山県井原市木之子町6833番地",
+      "plant_address": "岡山県井原市木之子町6833番地",
+      "company_phone": "0866-62-4121",
+      "plant_phone": "0866-62-4121"
+    },
+    {
+      "factory_id": "プレテック株式会社_本社工場",
+      "client_company": "プレテック株式会社",
+      "plant_name": "本社工場",
+      "company_address": "岡山県井原市木之子町2750番地",
+      "plant_address": "岡山県井原市木之子町2750番地",
+      "company_phone": "",
+      "plant_phone": ""
+    },
+    {
+      "factory_id": "ユアサ工機株式会社_御津工場",
+      "client_company": "ユアサ工機株式会社",
+      "plant_name": "御津工場",
+      "company_address": "岡山県岡山市北区厚生町2丁目14-21",
+      "plant_address": "岡山県岡山市北区御津矢原七端450-2",
+      "company_phone": "086-222-3211",
+      "plant_phone": "086-724-9337"
+    },
+    {
+      "factory_id": "ユアサ工機株式会社_新城工場",
+      "client_company": "ユアサ工機株式会社",
+      "plant_name": "新城工場",
+      "company_address": "岡山県岡山市北区久米６番地",
+      "plant_address": "愛知県新城市八名井字赤松1-8",
+      "company_phone": "086-241-2592",
+      "plant_phone": "0536-24-8018"
+    },
+    {
+      "factory_id": "ユアサ工機株式会社_本社工場",
+      "client_company": "ユアサ工機株式会社",
+      "plant_name": "本社工場",
+      "company_address": "岡山県岡山市北区久米６番地",
+      "plant_address": "岡山県岡山市北区久米６番地",
+      "company_phone": "086-241-2592",
+      "plant_phone": "086-241-2592"
+    },
+    {
+      "factory_id": "三幸技研株式会社_本社工場",
+      "client_company": "三幸技研株式会社",
+      "plant_name": "本社工場",
+      "company_address": "愛知県大府市一屋二丁目１９４",
+      "plant_address": "\t愛知県大府市一屋二丁目１９４",
+      "company_phone": "0562-47-5533",
+      "plant_phone": "0562-47-5533"
+    },
+    {
+      "factory_id": "六甲電子株式会社_本社工場",
+      "client_company": "六甲電子株式会社",
+      "plant_name": "本社工場",
+      "company_address": "兵庫県西宮市中島町8-5",
+      "plant_address": "",
+      "company_phone": "0798-65- 4508",
+      "plant_phone": ""
+    },
+    {
+      "factory_id": "加藤木材工業株式会社_春日井工場",
+      "client_company": "加藤木材工業株式会社",
+      "plant_name": "春日井工場",
+      "company_address": "愛知県春日井市新開町字平渕6",
+      "plant_address": "愛知県春日井市上田楽町川原先2466-1",
+      "company_phone": "0568-36-2931",
+      "plant_phone": "0568-82-0005"
+    },
+    {
+      "factory_id": "加藤木材工業株式会社_本社工場",
+      "client_company": "加藤木材工業株式会社",
+      "plant_name": "本社工場",
+      "company_address": "愛知県春日井市新開町字平渕6",
+      "plant_address": "愛知県春日井市新開町字平渕6",
+      "company_phone": "0568-36-2931",
+      "plant_phone": "0568-36-2931"
+    },
+    {
+      "factory_id": "新日本ホイール工業株式会社_本社工場",
+      "client_company": "新日本ホイール工業株式会社",
+      "plant_name": "本社工場",
+      "company_address": "静岡県浜松市浜名区新都田4-1-2",
+      "plant_address": "静岡県浜松市浜名区新都田4-1-2",
+      "company_phone": "053-428-4551",
+      "plant_phone": "053-428-4551"
+    },
+    {
+      "factory_id": "西岡工作所_本社工場",
+      "client_company": "有限会社西岡工作所",
+      "plant_name": "本社工場",
+      "company_address": "愛知県",
+      "plant_address": "愛知県",
+      "company_phone": "",
+      "plant_phone": ""
+    },
+    {
+      "factory_id": "株式会社オーツカ_関ケ原工場",
+      "client_company": "株式会社オーツカ",
+      "plant_name": "関ケ原工場",
+      "company_address": "岐阜県羽島郡笠松町門間1815-1",
+      "plant_address": "岐阜県不破郡関ケ原町今須3200",
+      "company_phone": "058-388-3121",
+      "plant_phone": "0584-43-5121"
+    },
+    {
+      "factory_id": "株式会社ワーク_堺工場",
+      "client_company": "株式会社ワーク",
+      "plant_name": "堺工場",
+      "company_address": "大阪府堺市西区浜寺石津町西1丁2番28号",
+      "plant_address": "大阪府堺市西区浜寺石津町西1丁2番28号",
+      "company_phone": "",
+      "plant_phone": ""
+    },
+    {
+      "factory_id": "株式会社ワーク_志紀工場",
+      "client_company": "株式会社ワーク",
+      "plant_name": "志紀工場",
+      "company_address": "大阪府八尾市志紀町",
+      "plant_address": "大阪府八尾市志紀町",
+      "company_phone": "",
+      "plant_phone": ""
+    },
+    {
+      "factory_id": "株式会社ワーク_岡山工場",
+      "client_company": "株式会社ワーク",
+      "plant_name": "岡山工場",
+      "company_address": "岡山県",
+      "plant_address": "岡山県",
+      "company_phone": "",
+      "plant_phone": ""
+    },
+    {
+      "factory_id": "株式会社三芳_本社工場",
+      "client_company": "株式会社三芳",
+      "plant_name": "本社工場",
+      "company_address": "愛知県愛知郡東郷町大字春木字千子554-426",
+      "plant_address": "愛知県愛知郡東郷町大字春木字千子554-426",
+      "company_phone": "",
+      "plant_phone": ""
+    },
+    {
+      "factory_id": "株式会社川原鉄工所_本社工場",
+      "client_company": "株式会社川原鉄工所",
+      "plant_name": "本社工場",
+      "company_address": "愛知県名古屋市港区善進本町413",
+      "plant_address": "愛知県名古屋市港区善進本町413",
+      "company_phone": "052-389-4088",
+      "plant_phone": "052-389-4088"
+    },
+    {
+      "factory_id": "株式会社美鈴工業_本社工場",
+      "client_company": "株式会社美鈴工業",
+      "plant_name": "本社工場",
+      "company_address": "愛知県小牧市大字上末969",
+      "plant_address": "愛知県小牧市大字上末969",
+      "company_phone": "0568-79-4145",
+      "plant_phone": "0568-79-4145"
+    },
+    {
+      "factory_id": "株式会社美鈴工業_本庄工場",
+      "client_company": "株式会社美鈴工業",
+      "plant_name": "本庄工場",
+      "company_address": "愛知県小牧市大字本庄173番地1",
+      "plant_address": "愛知県小牧市大字本庄173番地1",
+      "company_phone": "",
+      "plant_phone": ""
+    },
+    {
+      "factory_id": "高雄工業株式会社_HUB工場",
+      "client_company": "高雄工業株式会社",
+      "plant_name": "HUB工場",
+      "company_address": "愛知県弥富市楠三丁目13番地2",
+      "plant_address": "岡山県岡山市北区御津伊田1028-19",
+      "company_phone": "0567-68-8110",
+      "plant_phone": "086-724-5330"
+    },
+    {
+      "factory_id": "高雄工業株式会社__第二工場",
+      "client_company": "高雄工業株式会社",
+      "plant_name": "第二工場",
+      "company_address": "愛知県弥富市楠三丁目13番地2",
+      "plant_address": "静岡県袋井市山科2315番地1",
+      "company_phone": "0567-68-8110",
+      "plant_phone": "0538-48-5080"
+    },
+    {
+      "factory_id": "高雄工業株式会社__第一工場",
+      "client_company": "高雄工業株式会社",
+      "plant_name": "第一工場",
+      "company_address": "愛知県弥富市楠三丁目13番地2",
+      "plant_address": "静岡県袋井市山科2315番地1",
+      "company_phone": "0567-68-8110",
+      "plant_phone": "0538-48-5080"
+    },
+    {
+      "factory_id": "高雄工業株式会社_海南第二工場",
+      "client_company": "高雄工業株式会社",
+      "plant_name": "海南第二工場",
+      "company_address": "愛知県弥富市楠三丁目13番地2",
+      "plant_address": "愛知県弥富市六條町大崎11番地1",
+      "company_phone": "0567-68-8110",
+      "plant_phone": "0567-56-6711"
+    },
+    {
+      "factory_id": "高雄工業株式会社_海南第一工場",
+      "client_company": "高雄工業株式会社",
+      "plant_name": "海南第一工場",
+      "company_address": "愛知県弥富市楠三丁目13番地2",
+      "plant_address": "愛知県弥富市五斗山三丁目22番地",
+      "company_phone": "0567-68-8110",
+      "plant_phone": "0567-56-6681"
+    },
+    {
+      "factory_id": "高雄工業株式会社_CVJ工場",
+      "client_company": "高雄工業株式会社",
+      "plant_name": "CVJ工場",
+      "company_address": "愛知県弥富市楠三丁目13番地2",
+      "plant_address": "岡山県岡山市北区御津伊田1028-19",
+      "company_phone": "0567-68-8110",
+      "plant_phone": "086-724-5330"
+    },
+    {
+      "factory_id": "高雄工業株式会社__静岡工場",
+      "client_company": "高雄工業株式会社",
+      "plant_name": "静岡工場",
+      "company_address": "愛知県弥富市楠三丁目13番地2",
+      "plant_address": "静岡県袋井市山科2315番地1",
+      "company_phone": "0567-68-8110",
+      "plant_phone": "0538-48-5080"
+    },
+    {
+      "factory_id": "高雄工業株式会社_本社工場",
+      "client_company": "高雄工業株式会社",
+      "plant_name": "本社工場",
+      "company_address": "愛知県弥富市楠三丁目13番地2",
+      "plant_address": "愛知県弥富市楠三丁目13番地2",
+      "company_phone": "0567-68-8110",
+      "plant_phone": "0567-68-8110"
+    },
+    {
+      "factory_id": "高雄工業株式会社_岡山工場",
+      "client_company": "高雄工業株式会社",
+      "plant_name": "岡山工場",
+      "company_address": "愛知県弥富市楠三丁目13番地2",
+      "plant_address": "岡山県岡山市北区御津伊田1028-19",
+      "company_phone": "0567-68-8110",
+      "plant_phone": "086-724-5330"
+    }
+  ]
+}

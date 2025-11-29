@@ -1,0 +1,16 @@
+# Ignorar archivos de base de datos Access
+*.accdb
+
+# Archivos grandes (>100MB)
+all_candidates_with_photos.json
+config/access_candidates_data.json
+config/candidates_with_photos.json
+
+# Excel files con datos sensibles
+*.xlsm
+*.xlsx
+*.pdf
+
+# Mantener estos archivos
+!README.md
+!.gitkeep

@@ -1,0 +1,34 @@
+{
+  "env": {
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "0"
+  },
+  "permissions": {
+    "allow": [
+      "*",
+      "Bash(docker compose:*)",
+      "Bash(timeout 10 bash -c 'while ! docker compose ps | grep -q \"\"healthy\"\"; do echo \"\"Esperando servicios...\"\"; sleep 2; done; docker compose ps')",
+      "Bash(docker exec:*)",
+      "Bash(curl:*)",
+      "Bash(docker logs:*)",
+      "Bash(net use Z: \"\\UNS-Kikaku\\共有フォルダ\")",
+      "Bash(dir \"\\UNS-Kikaku\\共有フォルダ\\SCTDateBase\")",
+      "Bash(powershell.exe -Command \"Test-Path ''\\\\UNS-Kikaku\\共有フォルダ\\SCTDateBase''\")",
+      "Bash(winpty docker exec uns-kobetsu-backend ls -la //network_data)",
+      "Bash(docker inspect:*)",
+      "Bash(powershell.exe -Command \"docker exec uns-kobetsu-backend ls /network_data\")",
+      "Bash(powershell.exe -Command \"docker exec uns-kobetsu-backend ls /network_data/config/factories\")",
+      "Bash(timeout 30 bash:*)",
+      "Bash(timeout 40 bash:*)",
+      "Bash(powershell.exe -Command \"docker exec uns-kobetsu-backend cat /network_data/factories_index.json | Select-Object -First 50\")",
+      "Bash(powershell.exe -Command \"docker exec uns-kobetsu-backend cat ''/network_data/config/factories/アサヒフォージ株式会社_真庭工場.json''\")",
+      "Bash(powershell.exe -Command \"docker exec uns-kobetsu-backend ls -la /network_data/config/factories\")",
+      "Bash(powershell.exe -Command \"docker exec uns-kobetsu-backend cat ''/network_data/config/factories/株式会社美鈴工業_本社工場.json''\")",
+      "Bash(winpty docker exec uns-kobetsu-backend alembic current)",
+      "Bash(winpty docker exec:*)"
+    ],
+    "deny": [],
+    "ask": []
+  },
+  "alwaysThinkingEnabled": true,
+  "autoUpdates": true
+}

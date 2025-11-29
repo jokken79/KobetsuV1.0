@@ -1,0 +1,6 @@
+NAME                   IMAGE                                                                     COMMAND                   SERVICE                CREATED          STATUS                    PORTS
+uns-kobetsu-adminer    adminer:latest                                                            "entrypoint.sh docke…"   uns-kobetsu-adminer    54 minutes ago   Up 54 minutes             0.0.0.0:8090->8080/tcp, [::]:8090->8080/tcp
+uns-kobetsu-backend    sha256:97d7fd02e49192b289cab377fdd91612b90fd90de70bb3c09968f7b3cc93af14   "uvicorn app.main:ap…"   uns-kobetsu-backend    51 minutes ago   Up 49 minutes (healthy)   0.0.0.0:8010->8000/tcp, [::]:8010->8000/tcp
+uns-kobetsu-db         postgres:15-alpine                                                        "docker-entrypoint.s…"   uns-kobetsu-db         54 minutes ago   Up 54 minutes (healthy)   0.0.0.0:5442->5432/tcp, [::]:5442->5432/tcp
+uns-kobetsu-frontend   sha256:03e0f33b992a34c681b567e87ada598de26c4663171cb507b710871e2f8f3918   "docker-entrypoint.s…"   uns-kobetsu-frontend   55 minutes ago   Up 13 minutes (healthy)   0.0.0.0:3010->3000/tcp, [::]:3010->3000/tcp
+uns-kobetsu-redis      redis:7-alpine                                                            "docker-entrypoint.s…"   uns-kobetsu-redis      54 minutes ago   Up 54 minutes (healthy)   0.0.0.0:6389->6379/tcp, [::]:6389->6379/tcp

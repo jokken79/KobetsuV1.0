@@ -1,0 +1,207 @@
+version: '3.8'
+
+# ========================================
+# UNS Kobetsu Keiyakusho - Docker Compose
+# ========================================
+# Nombres únicos con prefijo 'uns-kobetsu-' para evitar conflictos
+# Puertos únicos para evitar conflictos:
+#   PostgreSQL: 5442
+#   Redis:      6389
+#   Backend:    8010
+#   Frontend:   3010
+#   Adminer:    8090
+# ========================================
+
+services:
+  # ========================================
+  # PostgreSQL Database
+  # ========================================
+  uns-kobetsu-db:
+    image: postgres:15-alpine
+    container_name: uns-kobetsu-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-kobetsu_db}
+      POSTGRES_USER: ${POSTGRES_USER:-kobetsu_admin}
+      # WARNING: Change password in production! Set POSTGRES_PASSWORD env var
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-CHANGE_THIS_IN_PRODUCTION}
+    ports:
+      - "${KOBETSU_DB_PORT:-5442}:5432"
+    volumes:
+      - uns_kobetsu_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kobetsu_admin}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - uns-kobetsu-network
+    labels:
+      - "app.name=uns-kobetsu-keiyakusho"
+      - "app.component=database"
+
+  # ========================================
+  # Redis Cache
+  # ========================================
+  uns-kobetsu-redis:
+    image: redis:7-alpine
+    container_name: uns-kobetsu-redis
+    restart: unless-stopped
+    ports:
+      - "${KOBETSU_REDIS_PORT:-6389}:6379"
+    volumes:
+      - uns_kobetsu_redis_data:/data
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - uns-kobetsu-network
+    labels:
+      - "app.name=uns-kobetsu-keiyakusho"
+      - "app.component=cache"
+
+  # ========================================
+  # FastAPI Backend
+  # ========================================
+  uns-kobetsu-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: uns-kobetsu-keiyakusho-backend:latest
+    container_name: uns-kobetsu-backend
+    restart: unless-stopped
+    environment:
+      # Database (internal Docker network)
+      DATABASE_URL: postgresql://${POSTGRES_USER:-kobetsu_admin}:${POSTGRES_PASSWORD:-CHANGE_THIS_IN_PRODUCTION}@uns-kobetsu-db:5432/${POSTGRES_DB:-kobetsu_db}
+
+      # Redis (internal Docker network)
+      REDIS_URL: redis://uns-kobetsu-redis:6379/0
+
+      # JWT - WARNING: MUST set SECRET_KEY in production with strong random value!
+      SECRET_KEY: ${SECRET_KEY:-INSECURE_DEV_KEY_DO_NOT_USE_IN_PRODUCTION}
+      ALGORITHM: ${ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+
+      # CORS
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3010}
+
+      # App - Set DEBUG=false in production!
+      DEBUG: ${DEBUG:-false}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+
+      # Sync - Data synchronization from network/local files
+      SYNC_DATA_PATH: /network_data
+      FACTORIES_DIR: config/factories
+    ports:
+      - "${KOBETSU_BACKEND_PORT:-8010}:8000"
+    volumes:
+      - ./backend:/app
+      - uns_kobetsu_outputs:/app/outputs
+      # Network data path - set SYNC_SOURCE_PATH env var or comment out for dev
+      - ${SYNC_SOURCE_PATH:-./data/sync}:/network_data
+    depends_on:
+      uns-kobetsu-db:
+        condition: service_healthy
+      uns-kobetsu-redis:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - uns-kobetsu-network
+    labels:
+      - "app.name=uns-kobetsu-keiyakusho"
+      - "app.component=backend"
+
+  # ========================================
+  # Next.js Frontend
+  # ========================================
+  uns-kobetsu-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: uns-kobetsu-keiyakusho-frontend:latest
+    container_name: uns-kobetsu-frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8010/api/v1}
+      NODE_ENV: ${NODE_ENV:-development}
+    ports:
+      - "${KOBETSU_FRONTEND_PORT:-3010}:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - uns-kobetsu-backend
+    command: npm run dev
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - uns-kobetsu-network
+    labels:
+      - "app.name=uns-kobetsu-keiyakusho"
+      - "app.component=frontend"
+
+  # ========================================
+  # Adminer (Database UI)
+  # ========================================
+  uns-kobetsu-adminer:
+    image: adminer:latest
+    container_name: uns-kobetsu-adminer
+    restart: unless-stopped
+    ports:
+      - "${KOBETSU_ADMINER_PORT:-8090}:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: uns-kobetsu-db
+    depends_on:
+      - uns-kobetsu-db
+    networks:
+      - uns-kobetsu-network
+    labels:
+      - "app.name=uns-kobetsu-keiyakusho"
+      - "app.component=adminer"
+
+# ========================================
+# Networks
+# ========================================
+networks:
+  uns-kobetsu-network:
+    name: uns-kobetsu-keiyakusho-network
+    driver: bridge
+    labels:
+      - "app.name=uns-kobetsu-keiyakusho"
+
+# ========================================
+# Volumes (all prefixed with uns_kobetsu_)
+# ========================================
+volumes:
+  uns_kobetsu_postgres_data:
+    name: uns-kobetsu-keiyakusho-postgres-data
+    driver: local
+    labels:
+      - "app.name=uns-kobetsu-keiyakusho"
+      - "app.component=database"
+
+  uns_kobetsu_redis_data:
+    name: uns-kobetsu-keiyakusho-redis-data
+    driver: local
+    labels:
+      - "app.name=uns-kobetsu-keiyakusho"
+      - "app.component=cache"
+
+  uns_kobetsu_outputs:
+    name: uns-kobetsu-keiyakusho-outputs
+    driver: local
+    labels:
+      - "app.name=uns-kobetsu-keiyakusho"
+      - "app.component=storage"
