@@ -26,6 +26,7 @@ from app.services.kobetsu_pdf_service import KobetsuPDFService
 from app.services.contract_logic_service import ContractLogicService, ContractValidationError
 from app.services.contract_date_service import ContractDateService
 from app.services.contract_renewal_service import ContractRenewalService
+from app.services.employee_compatibility_service import EmployeeCompatibilityValidator
 from app.schemas.kobetsu_keiyakusho import (
     KobetsuKeiyakushoCreate,
     KobetsuKeiyakushoUpdate,
@@ -1050,6 +1051,86 @@ async def get_factories_near_conflict_date(
     """
     logic_service = ContractLogicService(db)
     return logic_service.get_factories_near_conflict_date(days=days)
+
+
+# ========================================
+# VALIDATION ENDPOINTS
+# ========================================
+
+@router.post("/validate/employee-compatibility")
+async def validate_employee_compatibility(
+    employee_ids: List[int] = Query(..., description="Employee IDs to validate"),
+    factory_line_id: Optional[int] = Query(None, description="Factory line ID"),
+    hourly_rate: Optional[Decimal] = Query(None, description="Hourly rate (tanka)"),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Validate that multiple employees can work under the same contract.
+
+    Checks:
+    ✅ All employees are active (not resigned)
+    ✅ All employees are on the SAME factory_line_id
+    ✅ Compatible hourly rates
+    ✅ No conflicts with employee status/assignment
+
+    Returns:
+    {
+        "is_valid": bool,
+        "compatible_count": int,
+        "incompatible_count": int,
+        "compatible": [
+            {
+                "id": 1,
+                "employee_number": "EMP001",
+                "full_name_kanji": "山田太郎",
+                "line_name": "Manual Assembly",
+                "status": "compatible"
+            }
+        ],
+        "incompatible": [
+            {
+                "id": 3,
+                "employee_number": "EMP003",
+                "full_name_kanji": "神田太郎",
+                "line_name": "Welding",
+                "issues": [
+                    {
+                        "type": "different_line",
+                        "reason": "Employee is on Welding, contract is for Manual Assembly",
+                        "severity": "error"
+                    }
+                ]
+            }
+        ],
+        "suggestions": [
+            "Create separate contract for EMP003 (different line)"
+        ],
+        "summary": "1 compatible + 1 incompatible → Needs 1 separate contract"
+    }
+
+    Example:
+        POST /api/v1/kobetsu/validate/employee-compatibility?employee_ids=1&employee_ids=2&employee_ids=3&factory_line_id=5&hourly_rate=1200
+    """
+    try:
+        validator = EmployeeCompatibilityValidator(db)
+
+        # Convert Decimal to proper type if provided
+        rate = Decimal(str(hourly_rate)) if hourly_rate else None
+
+        # Validate employees using the service
+        result = validator.validate_employees(
+            employee_ids=employee_ids,
+            factory_line_id=factory_line_id,
+            hourly_rate=rate
+        )
+
+        return result
+
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
 
 
 # ========================================
