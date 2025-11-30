@@ -1,0 +1,126 @@
+# CODEOWNERS file for UNS-Kobetsu-Integrated
+# This file defines who should review pull requests for different parts of the codebase
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owners for everything in the repo (unless a later match takes precedence)
+* @uns-tech-leads
+
+# Backend (FastAPI/Python)
+/backend/ @backend-team @uns-tech-leads
+/backend/app/api/ @backend-team @api-team
+/backend/app/models/ @backend-team @database-team
+/backend/app/services/ @backend-team @business-logic-team
+/backend/app/core/security.py @backend-team @security-team
+/backend/alembic/ @database-team @backend-team
+/backend/tests/ @backend-team @qa-team
+/backend/requirements*.txt @backend-team @security-team
+
+# Frontend (Next.js/React/TypeScript)
+/frontend/ @frontend-team @uns-tech-leads
+/frontend/app/ @frontend-team
+/frontend/components/ @frontend-team @ui-team
+/frontend/lib/ @frontend-team
+/frontend/types/ @frontend-team @typescript-team
+/frontend/styles/ @frontend-team @ui-team
+/frontend/public/ @frontend-team @design-team
+/frontend/__tests__/ @frontend-team @qa-team
+/frontend/package*.json @frontend-team @security-team
+/frontend/.eslintrc* @frontend-team
+/frontend/tsconfig.json @frontend-team @typescript-team
+/frontend/next.config.js @frontend-team @devops-team
+
+# Docker and Infrastructure
+docker-compose*.yml @devops-team @uns-tech-leads
+**/Dockerfile @devops-team @security-team
+**/.dockerignore @devops-team
+.env.example @devops-team @security-team
+
+# CI/CD
+/.github/workflows/ @devops-team @uns-tech-leads
+/.github/actions/ @devops-team
+/.github/dependabot.yml @devops-team @security-team
+/.github/CODEOWNERS @uns-tech-leads
+
+# Documentation
+*.md @documentation-team
+/docs/ @documentation-team @uns-tech-leads
+/CLAUDE.md @uns-tech-leads
+/README.md @uns-tech-leads @documentation-team
+/EXCEL_TO_WEB_MIGRATION.md @business-logic-team @uns-tech-leads
+
+# Security-sensitive files
+*.pem @security-team @uns-tech-leads
+*.key @security-team @uns-tech-leads
+*.cert @security-team @uns-tech-leads
+**/secrets* @security-team @uns-tech-leads
+.env* @security-team @devops-team
+
+# Scripts and utilities
+/scripts/ @devops-team @backend-team
+/backend/scripts/ @backend-team @business-logic-team
+/frontend/scripts/ @frontend-team
+
+# Configuration files
+*.json @frontend-team @backend-team
+*.yaml @devops-team
+*.yml @devops-team
+*.toml @backend-team
+*.ini @backend-team
+
+# Database-related files
+*.sql @database-team
+/backend/app/models/ @database-team @backend-team
+/backend/alembic/versions/ @database-team
+
+# Legal compliance and business logic
+/backend/app/services/kobetsu_service.py @business-logic-team @legal-compliance-team
+/backend/app/services/contract_logic_service.py @legal-compliance-team @business-logic-team
+/backend/app/models/kobetsu_keiyakusho.py @legal-compliance-team @database-team
+/backend/app/schemas/kobetsu_keiyakusho.py @legal-compliance-team @backend-team
+
+# Excel/Data migration
+/backend/app/services/import_service.py @data-migration-team @backend-team
+/backend/scripts/import_from_excel.py @data-migration-team @business-logic-team
+/backend/app/api/v1/imports.py @data-migration-team @api-team
+
+# Document generation
+/backend/app/services/kobetsu_pdf_service.py @document-generation-team @backend-team
+/backend/app/api/v1/documents.py @document-generation-team @api-team
+
+# Testing
+/backend/tests/ @qa-team @backend-team
+/frontend/__tests__/ @qa-team @frontend-team
+/e2e/ @qa-team @frontend-team @backend-team
+*.test.* @qa-team
+*.spec.* @qa-team
+
+# Performance-critical files
+/frontend/app/layout.tsx @frontend-team @performance-team
+/frontend/app/page.tsx @frontend-team @performance-team
+/backend/app/main.py @backend-team @performance-team
+/backend/app/core/database.py @database-team @performance-team
+
+# Integration points
+/frontend/lib/api.ts @frontend-team @api-team @backend-team
+/backend/app/api/v1/ @api-team @backend-team
+/backend/app/core/config.py @backend-team @devops-team
+
+# Note: GitHub Teams referenced here should be created in the repository settings
+# Example teams:
+# - @uns-tech-leads: Technical leadership team
+# - @backend-team: Backend developers
+# - @frontend-team: Frontend developers
+# - @devops-team: DevOps engineers
+# - @database-team: Database administrators
+# - @security-team: Security experts
+# - @api-team: API designers
+# - @ui-team: UI/UX designers
+# - @qa-team: Quality assurance
+# - @documentation-team: Technical writers
+# - @legal-compliance-team: Legal compliance experts
+# - @business-logic-team: Business logic experts
+# - @data-migration-team: Data migration specialists
+# - @document-generation-team: Document generation experts
+# - @performance-team: Performance optimization experts
+# - @typescript-team: TypeScript experts
+# - @design-team: Graphic designers

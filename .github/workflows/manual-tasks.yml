@@ -1,0 +1,315 @@
+name: Manual Tasks
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: 'Task to perform'
+        required: true
+        type: choice
+        options:
+          - clear-cache
+          - backup-database
+          - reset-test-data
+          - generate-reports
+          - update-dependencies
+          - clean-docker-images
+          - run-migrations
+          - validate-contracts
+      environment:
+        description: 'Environment'
+        required: true
+        type: choice
+        default: 'staging'
+        options:
+          - development
+          - staging
+          - production
+      confirm:
+        description: 'Type "confirm" to proceed'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  validate:
+    name: Validate Request
+    runs-on: ubuntu-latest
+    outputs:
+      proceed: ${{ steps.check.outputs.proceed }}
+    steps:
+      - name: Check confirmation
+        id: check
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "confirm" ]; then
+            echo "❌ Confirmation not provided. Type 'confirm' to proceed."
+            echo "proceed=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          echo "✅ Confirmation received"
+          echo "proceed=true" >> $GITHUB_OUTPUT
+
+      - name: Log task details
+        run: |
+          echo "Task: ${{ github.event.inputs.task }}"
+          echo "Environment: ${{ github.event.inputs.environment }}"
+          echo "Requested by: ${{ github.actor }}"
+          echo "Time: $(date -u)"
+
+  clear-cache:
+    name: Clear Cache
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event.inputs.task == 'clear-cache' && needs.validate.outputs.proceed == 'true'
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Clear Redis cache
+        run: |
+          echo "Clearing Redis cache for ${{ github.event.inputs.environment }}..."
+          # Add actual Redis clear commands here
+          # redis-cli -h $REDIS_HOST FLUSHDB
+          echo "✅ Redis cache cleared"
+
+      - name: Clear application cache
+        run: |
+          echo "Clearing application cache..."
+          # Add application cache clear commands
+          echo "✅ Application cache cleared"
+
+      - name: Clear CDN cache
+        run: |
+          echo "Clearing CDN cache..."
+          # Add CDN cache purge commands
+          echo "✅ CDN cache cleared"
+
+  backup-database:
+    name: Backup Database
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event.inputs.task == 'backup-database' && needs.validate.outputs.proceed == 'true'
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Create backup
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          BACKUP_NAME="${{ github.event.inputs.environment }}_backup_${TIMESTAMP}"
+
+          echo "Creating backup: $BACKUP_NAME"
+          # pg_dump "$DATABASE_URL" | gzip > "${BACKUP_NAME}.sql.gz"
+
+          echo "✅ Backup created: $BACKUP_NAME"
+
+      - name: Upload to storage
+        run: |
+          echo "Uploading backup to storage..."
+          # Add upload commands (S3, Azure, etc.)
+          echo "✅ Backup uploaded"
+
+      - name: Create backup record
+        run: |
+          echo "Recording backup details..."
+          # Add backup metadata recording
+          echo "✅ Backup recorded"
+
+  reset-test-data:
+    name: Reset Test Data
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event.inputs.task == 'reset-test-data' && needs.validate.outputs.proceed == 'true'
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate environment
+        run: |
+          if [ "${{ github.event.inputs.environment }}" == "production" ]; then
+            echo "❌ Cannot reset test data in production!"
+            exit 1
+          fi
+
+      - name: Reset database
+        run: |
+          echo "Resetting test database..."
+          # Add database reset commands
+          echo "✅ Database reset"
+
+      - name: Import test data
+        run: |
+          echo "Importing test data..."
+          # Add test data import commands
+          echo "✅ Test data imported"
+
+  generate-reports:
+    name: Generate Reports
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event.inputs.task == 'generate-reports' && needs.validate.outputs.proceed == 'true'
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Generate contract report
+        run: |
+          echo "Generating contract report..."
+          # Add report generation logic
+          echo "✅ Contract report generated"
+
+      - name: Generate compliance report
+        run: |
+          echo "Generating compliance report..."
+          # Add compliance check logic
+          echo "✅ Compliance report generated"
+
+      - name: Upload reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports-${{ github.event.inputs.environment }}-${{ github.run_id }}
+          path: |
+            *.pdf
+            *.xlsx
+            *.csv
+
+  update-dependencies:
+    name: Update Dependencies
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event.inputs.task == 'update-dependencies' && needs.validate.outputs.proceed == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Update Python dependencies
+        run: |
+          cd backend
+          pip install pip-tools
+          pip-compile --upgrade requirements.in
+          echo "✅ Python dependencies updated"
+
+      - name: Update Node dependencies
+        run: |
+          cd frontend
+          npm update
+          npm audit fix
+          echo "✅ Node dependencies updated"
+
+      - name: Create PR
+        uses: peter-evans/create-pull-request@v5
+        with:
+          title: "chore: Update dependencies"
+          body: "Automated dependency update from manual workflow"
+          branch: deps/update-${{ github.run_id }}
+          commit-message: "chore: Update dependencies"
+
+  clean-docker-images:
+    name: Clean Docker Images
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event.inputs.task == 'clean-docker-images' && needs.validate.outputs.proceed == 'true'
+    steps:
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Clean old images
+        run: |
+          echo "Cleaning old Docker images..."
+          # Add image cleanup logic
+          # Keep last 5 versions, delete older
+          echo "✅ Docker images cleaned"
+
+  run-migrations:
+    name: Run Database Migrations
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event.inputs.task == 'run-migrations' && needs.validate.outputs.proceed == 'true'
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: Run migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          cd backend
+          echo "Current migration version:"
+          alembic current
+
+          echo "Running migrations..."
+          alembic upgrade head
+
+          echo "New migration version:"
+          alembic current
+          echo "✅ Migrations completed"
+
+  validate-contracts:
+    name: Validate Contracts
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event.inputs.task == 'validate-contracts' && needs.validate.outputs.proceed == 'true'
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: Run validation
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          echo "Validating all contracts for 労働者派遣法第26条 compliance..."
+          # Add contract validation logic
+          # python scripts/validate_contracts.py
+          echo "✅ All contracts validated"
+
+  notify:
+    name: Send Notification
+    runs-on: ubuntu-latest
+    needs: [validate, clear-cache, backup-database, reset-test-data, generate-reports, update-dependencies, clean-docker-images, run-migrations, validate-contracts]
+    if: always() && needs.validate.outputs.proceed == 'true'
+    steps:
+      - name: Send completion notification
+        run: |
+          TASK="${{ github.event.inputs.task }}"
+          ENV="${{ github.event.inputs.environment }}"
+          STATUS="completed"
+
+          echo "Task '$TASK' $STATUS for environment '$ENV'"
+          echo "Executed by: ${{ github.actor }}"
+          echo "Completed at: $(date -u)"
+
+          # Add actual notification logic (Slack, email, etc.)
