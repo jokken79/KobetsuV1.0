@@ -103,13 +103,13 @@ export function KobetsuForm({ initialData, onSubmit, isLoading }: KobetsuFormPro
 
   // Filter employees based on search (by 社員№ or name)
   const filteredEmployees = useMemo(() => {
-    if (!employeeSearch.trim()) return employees.slice(0, 50) // Show first 50 by default
+    if (!employeeSearch.trim()) return employees.slice(0, 200) // Show first 200 by default
     const search = employeeSearch.toLowerCase()
     return employees.filter(emp =>
       emp.employee_number?.toLowerCase().includes(search) ||
       emp.full_name_kanji?.toLowerCase().includes(search) ||
       emp.full_name_kana?.toLowerCase().includes(search)
-    ).slice(0, 50)
+    ).slice(0, 200) // Aumentado a 200 para mejor UX
   }, [employees, employeeSearch])
 
   // Handle employee selection
@@ -143,16 +143,17 @@ export function KobetsuForm({ initialData, onSubmit, isLoading }: KobetsuFormPro
             worksite_name: factory.plant_name,
             worksite_address: factory.plant_address || factory.company_address || '',
             supervisor_department: factory.supervisor_department || '',
+            supervisor_position: factory.supervisor_position || '課長',  // ✅ Auto-fill con default
             supervisor_name: factory.supervisor_name || '',
             haken_saki_complaint_contact: {
                 department: factory.client_complaint_department || '',
-                position: '', // Usually not in factory data directly unless mapped
+                position: '担当者',  // ✅ Default position para complaint contact
                 name: factory.client_complaint_name || '',
                 phone: factory.client_complaint_phone || '',
             },
             haken_saki_manager: {
                 department: factory.client_responsible_department || '',
-                position: '',
+                position: '課長',  // ✅ Default position para manager
                 name: factory.client_responsible_name || '',
                 phone: factory.client_responsible_phone || '',
             }
@@ -223,6 +224,14 @@ export function KobetsuForm({ initialData, onSubmit, isLoading }: KobetsuFormPro
     if (formData.dispatch_start_date && formData.dispatch_end_date) {
       if (formData.dispatch_end_date < formData.dispatch_start_date) {
         newErrors.dispatch_end_date = '終了日は開始日以降にしてください'
+      }
+      // ✅ 労働者派遣法: 派遣期間は最大3年
+      const startDate = new Date(formData.dispatch_start_date)
+      const endDate = new Date(formData.dispatch_end_date)
+      const monthsDiff = (endDate.getFullYear() - startDate.getFullYear()) * 12 +
+                         (endDate.getMonth() - startDate.getMonth())
+      if (monthsDiff > 36) {
+        newErrors.dispatch_end_date = '派遣期間は36ヶ月(3年)以内である必要があります（労働者派遣法第40条）'
       }
     }
     if (!formData.supervisor_name) {
