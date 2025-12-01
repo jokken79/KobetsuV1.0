@@ -93,45 +93,63 @@ def create_admin_user(
 
 def main():
     """Main function to run when script is executed directly."""
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Create admin user for UNS Kobetsu')
+    parser.add_argument('--email', default='admin@local.dev', help='Admin email')
+    parser.add_argument('--password', default='admin123', help='Admin password')
+    parser.add_argument('--name', default='Admin User', help='Full name')
+    parser.add_argument('--role', default='admin', choices=['admin', 'manager', 'user'])
+    parser.add_argument('--no-interactive', '-y', action='store_true',
+                        help='Skip interactive prompts, use defaults')
+    args = parser.parse_args()
+
     print("\n" + "="*50)
     print("UNS Kobetsu - Admin User Creation")
     print("="*50 + "\n")
-    
+
     # Create tables if they don't exist
     Base.metadata.create_all(bind=engine)
     print("✅ Database tables verified/created")
-    
+
     # Default values for local development
-    email = "admin@local.dev"
-    password = "admin123"
-    full_name = "Admin User"
-    role = "admin"
-    
-    # Ask if user wants to customize
-    print("\nDefault admin credentials:")
-    print(f"  Email: {email}")
-    print(f"  Password: {password}")
-    print(f"  Role: {role}\n")
-    
-    customize = input("Use default values? (y/n): ").lower().strip()
-    
-    if customize == 'n':
-        email_input = input(f"Enter email [{email}]: ").strip()
-        if email_input:
-            email = email_input
-            
-        password_input = input(f"Enter password [{password}]: ").strip()
-        if password_input:
-            password = password_input
-            
-        full_name_input = input(f"Enter full name [{full_name}]: ").strip()
-        if full_name_input:
-            full_name = full_name_input
-            
-        role_input = input(f"Enter role (admin/manager/user) [{role}]: ").strip()
-        if role_input in ['admin', 'manager', 'user']:
-            role = role_input
-    
+    email = args.email
+    password = args.password
+    full_name = args.name
+    role = args.role
+
+    # Ask if user wants to customize (unless --no-interactive)
+    if not args.no_interactive:
+        print("\nDefault admin credentials:")
+        print(f"  Email: {email}")
+        print(f"  Password: {password}")
+        print(f"  Role: {role}\n")
+
+        try:
+            customize = input("Use default values? (y/n): ").lower().strip()
+
+            if customize == 'n':
+                email_input = input(f"Enter email [{email}]: ").strip()
+                if email_input:
+                    email = email_input
+
+                password_input = input(f"Enter password [{password}]: ").strip()
+                if password_input:
+                    password = password_input
+
+                full_name_input = input(f"Enter full name [{full_name}]: ").strip()
+                if full_name_input:
+                    full_name = full_name_input
+
+                role_input = input(f"Enter role (admin/manager/user) [{role}]: ").strip()
+                if role_input in ['admin', 'manager', 'user']:
+                    role = role_input
+        except EOFError:
+            # Non-interactive environment, use defaults
+            print("Non-interactive mode detected, using defaults...")
+    else:
+        print(f"Creating admin with: {email} / {password}")
+
     # Create the admin user
     create_admin_user(
         email=email,
@@ -139,10 +157,10 @@ def main():
         full_name=full_name,
         role=role
     )
-    
+
     print("\n" + "="*50)
     print("Admin user setup complete!")
-    print("You can now login to the system.")
+    print(f"Login: {email} / {password}")
     print("="*50 + "\n")
 
 

@@ -104,14 +104,25 @@ def create_demo_contracts(count: int = 5):
     Args:
         count: Number of contracts to create
     """
+    from app.models.factory import Factory
+
     db = SessionLocal()
 
     try:
+        # Get existing factories from database
+        existing_factories = db.query(Factory).filter(Factory.is_active == True).all()
+
+        if not existing_factories:
+            print("WARNING: No factories found in database. Creating demo contracts with placeholder data...")
+            use_db_factories = False
+        else:
+            use_db_factories = True
+            print(f"Found {len(existing_factories)} factories in database")
+
         contracts_created = 0
 
         for i in range(count):
             # Generate contract data
-            factory_idx = i % len(FACTORY_NAMES)
             supervisor_idx = i % len(SUPERVISOR_NAMES)
 
             # Dates
@@ -130,18 +141,32 @@ def create_demo_contracts(count: int = 5):
                 print(f"Contract {contract_number} already exists, skipping...")
                 continue
 
+            # Use real factory if available
+            if use_db_factories:
+                factory = existing_factories[i % len(existing_factories)]
+                factory_id = factory.id
+                worksite_name = f"{factory.company_name} {factory.plant_name}"
+                worksite_address = factory.plant_address or factory.company_address or FACTORY_ADDRESSES[i % len(FACTORY_ADDRESSES)]
+                work_content = WORK_CONTENTS[i % len(WORK_CONTENTS)]
+            else:
+                factory_idx = i % len(FACTORY_NAMES)
+                factory_id = factory_idx + 1
+                worksite_name = FACTORY_NAMES[factory_idx]
+                worksite_address = FACTORY_ADDRESSES[factory_idx]
+                work_content = WORK_CONTENTS[factory_idx]
+
             # Create contract
             contract = KobetsuKeiyakusho(
                 contract_number=contract_number,
-                factory_id=factory_idx + 1,
+                factory_id=factory_id,
                 dispatch_assignment_id=None,
                 contract_date=date.today(),
                 dispatch_start_date=start_date,
                 dispatch_end_date=end_date,
-                work_content=WORK_CONTENTS[factory_idx],
+                work_content=work_content,
                 responsibility_level=random.choice(["補助的業務", "通常業務", "責任業務"]),
-                worksite_name=FACTORY_NAMES[factory_idx],
-                worksite_address=FACTORY_ADDRESSES[factory_idx],
+                worksite_name=worksite_name,
+                worksite_address=worksite_address,
                 organizational_unit=f"第{random.randint(1, 3)}製造部",
                 supervisor_department=SUPERVISOR_NAMES[supervisor_idx][0],
                 supervisor_position=SUPERVISOR_NAMES[supervisor_idx][1],
