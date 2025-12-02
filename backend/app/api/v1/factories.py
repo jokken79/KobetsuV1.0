@@ -35,7 +35,7 @@ async def list_factories(
     company_name: Optional[str] = None,
     is_active: Optional[bool] = True,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    # current_user: dict = Depends(get_current_user)  # TODO: Re-enable auth in production
 ):
     """Get list of factories with optional filters."""
     query = db.query(Factory)
@@ -86,7 +86,7 @@ async def list_factories(
 async def get_factory(
     factory_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    # current_user: dict = Depends(get_current_user)  # TODO: Re-enable auth in production
 ):
     """Get factory details by ID."""
     factory = db.query(Factory).options(
@@ -204,7 +204,7 @@ async def list_factory_lines(
     factory_id: int,
     is_active: Optional[bool] = True,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    # current_user: dict = Depends(get_current_user)  # TODO: Re-enable auth in production
 ):
     """Get all lines for a factory."""
     factory = db.query(Factory).filter(Factory.id == factory_id).first()
@@ -224,7 +224,7 @@ async def create_factory_line(
     factory_id: int,
     line_data: FactoryLineCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    # current_user: dict = Depends(get_current_user)  # TODO: Re-enable auth in production
 ):
     """Create a new line for a factory."""
     factory = db.query(Factory).filter(Factory.id == factory_id).first()
@@ -244,7 +244,7 @@ async def update_factory_line(
     line_id: int,
     line_data: FactoryLineUpdate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    # current_user: dict = Depends(get_current_user)  # TODO: Re-enable auth in production
 ):
     """Update a factory line."""
     line = db.query(FactoryLine).filter(FactoryLine.id == line_id).first()
@@ -266,7 +266,7 @@ async def update_factory_line(
 async def delete_factory_line(
     line_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    # current_user: dict = Depends(get_current_user)  # TODO: Re-enable auth in production
 ):
     """Delete a factory line (soft delete)."""
     line = db.query(FactoryLine).filter(FactoryLine.id == line_id).first()

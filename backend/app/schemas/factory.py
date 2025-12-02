@@ -84,11 +84,19 @@ class FactoryLineUpdate(BaseModel):
     department: Optional[str] = None
     line_name: Optional[str] = None
     supervisor_department: Optional[str] = None
+    supervisor_position: Optional[str] = None
     supervisor_name: Optional[str] = None
     supervisor_phone: Optional[str] = None
     job_description: Optional[str] = None
+    job_description_detail: Optional[str] = None
+    responsibility_level: Optional[str] = None
     hourly_rate: Optional[Decimal] = None
+    billing_rate: Optional[Decimal] = None
+    overtime_rate: Optional[Decimal] = None
+    night_rate: Optional[Decimal] = None
+    holiday_rate: Optional[Decimal] = None
     is_active: Optional[bool] = None
+    display_order: Optional[int] = None
 
 
 class FactoryLineResponse(FactoryLineBase):

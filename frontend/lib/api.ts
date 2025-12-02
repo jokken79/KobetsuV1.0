@@ -18,6 +18,9 @@ import type {
   FactoryUpdate,
   FactoryResponse,
   FactoryListItem,
+  FactoryLineCreate,
+  FactoryLineUpdate,
+  FactoryLineResponse,
   CompanyOption,
   PlantOption,
   DepartmentOption,
@@ -517,6 +520,35 @@ export const factoryApi = {
   getCascadeData: async (lineId: number): Promise<FactoryCascadeData> => {
     const response = await apiClient.get<FactoryCascadeData>(`/factories/dropdown/cascade/${lineId}`)
     return response.data
+  },
+
+  // ========================================
+  // FACTORY LINE CRUD
+  // ========================================
+
+  // Get lines for a factory
+  getLinesByFactory: async (factoryId: number, isActive?: boolean): Promise<FactoryLineResponse[]> => {
+    const response = await apiClient.get<FactoryLineResponse[]>(`/factories/${factoryId}/lines`, {
+      params: { is_active: isActive },
+    })
+    return response.data
+  },
+
+  // Create a new line
+  createLine: async (factoryId: number, data: FactoryLineCreate): Promise<FactoryLineResponse> => {
+    const response = await apiClient.post<FactoryLineResponse>(`/factories/${factoryId}/lines`, data)
+    return response.data
+  },
+
+  // Update a line
+  updateLine: async (lineId: number, data: FactoryLineUpdate): Promise<FactoryLineResponse> => {
+    const response = await apiClient.put<FactoryLineResponse>(`/factories/lines/${lineId}`, data)
+    return response.data
+  },
+
+  // Delete a line (soft delete)
+  deleteLine: async (lineId: number): Promise<void> => {
+    await apiClient.delete(`/factories/lines/${lineId}`)
   },
 }
 
