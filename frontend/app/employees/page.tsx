@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { employeeApi } from '@/lib/api'
 import type { EmployeeListItem } from '@/types'
+import { SkeletonStats, SkeletonTable } from '@/components/common/Skeleton'
 
 export default function EmployeesPage() {
   const router = useRouter()
@@ -129,7 +130,9 @@ export default function EmployeesPage() {
       </div>
 
       {/* Stats Cards */}
-      {stats && (
+      {isLoading ? (
+        <SkeletonStats count={4} className="grid-cols-1 md:grid-cols-4 xl:grid-cols-4 mb-6" />
+      ) : stats ? (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between">
@@ -198,7 +201,7 @@ export default function EmployeesPage() {
             </div>
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
@@ -346,10 +349,7 @@ export default function EmployeesPage() {
       {/* Employee List */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         {isLoading ? (
-          <div className="p-12 text-center">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <p className="text-gray-600 mt-4">読み込み中...</p>
-          </div>
+          <SkeletonTable rows={10} columns={10} />
         ) : filteredEmployees.length === 0 ? (
           <div className="p-12 text-center text-gray-500">
             <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

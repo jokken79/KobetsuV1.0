@@ -7,6 +7,7 @@ import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { kobetsuApi } from '@/lib/api'
 import type { KobetsuCreate } from '@/types'
+import { Breadcrumbs, dashboardBreadcrumb } from '@/components/common/Breadcrumbs'
 
 // Lazy load the heavy form component
 const KobetsuFormHybrid = dynamic(() => import('@/components/kobetsu/KobetsuFormHybrid').then(mod => mod.KobetsuFormHybrid), {
@@ -55,6 +56,16 @@ export default function CreateKobetsuPage() {
 
   return (
     <div className="space-y-6">
+      {/* Breadcrumbs */}
+      <Breadcrumbs
+        items={[
+          dashboardBreadcrumb,
+          { label: '個別契約書', href: '/kobetsu' },
+          { label: '新規作成' }
+        ]}
+        className="mb-4"
+      />
+
       {/* Page Header */}
       <div className="flex justify-between items-center">
         <div>

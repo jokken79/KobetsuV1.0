@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { employeeApi, factoryApi } from '@/lib/api'
 import FactoryCascadeSelector from '@/components/factory/FactoryCascadeSelector'
 import type { EmployeeUpdate, FactoryCascadeData } from '@/types'
+import { Breadcrumbs, dashboardBreadcrumb } from '@/components/common/Breadcrumbs'
 
 export default function EditEmployeePage() {
   const router = useRouter()
@@ -173,6 +174,16 @@ export default function EditEmployeePage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-4xl mx-auto">
+        {/* Breadcrumbs */}
+        <Breadcrumbs
+          items={[
+            dashboardBreadcrumb,
+            { label: '従業員管理', href: '/employees' },
+            { label: employee.full_name_kanji || employee.employee_number }
+          ]}
+          className="mb-6"
+        />
+
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
           <div>
