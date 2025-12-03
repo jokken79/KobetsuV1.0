@@ -1,0 +1,209 @@
+name: Performance Improvement
+description: Track performance optimization tasks and improvements
+title: "[PERF] "
+labels: ["performance", "optimization", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for identifying a performance improvement opportunity! This helps us ensure the system runs efficiently.
+
+  - type: dropdown
+    id: performance-type
+    attributes:
+      label: Performance Type
+      description: What type of performance improvement is this?
+      options:
+        - Database Query Optimization
+        - API Response Time
+        - Frontend Load Time
+        - Memory Usage
+        - CPU Usage
+        - Network Latency
+        - Caching Strategy
+        - Algorithm Efficiency
+        - Bundle Size Reduction
+        - Database Indexing
+        - Concurrent Processing
+        - Resource Utilization
+      multiple: false
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      description: Which component needs performance improvement?
+      options:
+        - Backend API
+        - Frontend Application
+        - Database Layer
+        - File Processing
+        - PDF Generation
+        - Data Import/Export
+        - Authentication System
+        - Search Functionality
+        - Dashboard/Reports
+        - Background Jobs
+      multiple: false
+    validations:
+      required: true
+
+  - type: textarea
+    id: current-performance
+    attributes:
+      label: Current Performance Metrics
+      description: What are the current performance metrics?
+      placeholder: |
+        - API response time: 2.5 seconds
+        - Database query: 800ms
+        - Page load time: 4.2 seconds
+        - Memory usage: 512MB
+        - CPU usage: 85%
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: target-performance
+    attributes:
+      label: Target Performance Metrics
+      description: What are the target performance metrics?
+      placeholder: |
+        - API response time: <500ms
+        - Database query: <100ms
+        - Page load time: <2 seconds
+        - Memory usage: <256MB
+        - CPU usage: <50%
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem-description
+    attributes:
+      label: Problem Description
+      description: Describe the performance issue in detail.
+      placeholder: Explain what is slow, when it occurs, and how it impacts users...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: Steps to Reproduce
+      description: How can this performance issue be reproduced?
+      placeholder: |
+        1. Navigate to...
+        2. Click on...
+        3. Wait for...
+        4. Observe slowness in...
+      render: markdown
+
+  - type: dropdown
+    id: user-impact
+    attributes:
+      label: User Impact
+      description: How does this affect user experience?
+      options:
+        - Critical (system unusable)
+        - High (major frustration)
+        - Medium (noticeable delay)
+        - Low (minor annoyance)
+        - Minimal (hardly noticeable)
+      multiple: false
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Solution
+      description: What approach should be taken to improve performance?
+      placeholder: |
+        - Add database indexes
+        - Implement caching
+        - Optimize queries
+        - Use lazy loading
+        - Compress assets
+        - Implement pagination
+        - Use background processing
+
+  - type: textarea
+    id: implementation-plan
+    attributes:
+      label: Implementation Plan
+      description: Detailed steps to implement the performance improvement.
+      placeholder: |
+        1. Analyze current bottlenecks
+        2. Implement solution
+        3. Add performance tests
+        4. Monitor improvements
+        5. Document changes
+
+  - type: dropdown
+    id: complexity
+    attributes:
+      label: Implementation Complexity
+      description: How complex is this performance improvement?
+      options:
+        - Simple (quick fix)
+        - Medium (requires testing)
+        - Complex (significant changes)
+        - Very Complex (architectural changes)
+      multiple: false
+    validations:
+      required: true
+
+  - type: dropdown
+    id: testing-approach
+    attributes:
+      label: Testing Approach
+      description: How will this improvement be tested?
+      options:
+        - Performance benchmarks
+        - Load testing
+        - Integration tests
+        - User acceptance testing
+        - A/B testing
+        - Manual verification
+      multiple: true
+
+  - type: textarea
+    id: monitoring-plan
+    attributes:
+      label: Monitoring Plan
+      description: How will performance be monitored after implementation?
+      placeholder: |
+        - Add performance metrics to dashboard
+        - Set up alerts for regressions
+        - Implement automated performance tests
+        - Monitor key indicators
+
+  - type: textarea
+    id: rollback-plan
+    attributes:
+      label: Rollback Plan
+      description: What is the rollback strategy if the improvement causes issues?
+      placeholder: Describe how to revert changes if needed...
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Performance Improvement Checklist
+      options:
+        - label: I have measured current performance metrics
+          required: true
+        - label: I have defined clear target metrics
+          required: true
+        - label: I have assessed user impact
+          required: true
+        - label: I have a testing strategy
+          required: true
+        - label: I have a monitoring plan
+          required: true
+        - label: I understand this will be tracked in performance metrics
+          required: true

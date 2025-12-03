@@ -1,0 +1,297 @@
+name: Collaboration Request
+description: Request collaboration or help from the team
+title: "[COLLAB] "
+labels: ["collaboration", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reaching out for collaboration! This template helps us understand your needs and provide the right support.
+
+  - type: dropdown
+    id: collaboration-type
+    attributes:
+      label: Collaboration Type
+      description: What type of collaboration do you need?
+      options:
+        - Code Review
+        - Feature Development
+        - Bug Investigation
+        - Architecture Review
+        - Performance Analysis
+        - Security Review
+        - Documentation Help
+        - Testing Support
+        - Deployment Assistance
+        - Knowledge Transfer
+        - Mentorship/Training
+      multiple: false
+    validations:
+      required: true
+
+  - type: dropdown
+    id: urgency
+    attributes:
+      label: Urgency Level
+      description: How urgent is this collaboration request?
+      options:
+        - Critical (blocking work)
+        - High (important deadline)
+        - Medium (normal priority)
+        - Low (can wait)
+      multiple: false
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component Area
+      description: Which component area does this relate to?
+      options:
+        - Backend (FastAPI)
+        - Frontend (Next.js)
+        - Database (PostgreSQL)
+        - Infrastructure/DevOps
+        - Testing
+        - Documentation
+        - Security
+        - Performance
+        - Architecture
+        - Project Management
+      multiple: true
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Detailed Description
+      description: Provide a detailed description of what you need help with.
+      placeholder: |
+        Please describe:
+        - What you're trying to accomplish
+        - What you've already tried
+        - Where you're getting stuck
+        - What specific help you need
+        - Any deadlines or constraints
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context and Background
+      description: Provide any relevant context or background information.
+      placeholder: |
+        Include:
+        - Related issues or PRs
+        - Previous discussions or decisions
+        - Technical constraints
+        - Business requirements
+        - Team members involved
+
+  - type: textarea
+    id: expectations
+    attributes:
+      label: Expected Outcome
+      description: What does success look like for this collaboration?
+      placeholder: |
+        Describe:
+        - The specific deliverable you need
+        - Acceptance criteria
+        - How you'll measure success
+        - Timeline expectations
+
+  - type: dropdown
+    id: time-commitment
+    attributes:
+      label: Time Commitment
+      description: How much time can you commit?
+      options:
+        - Quick question (15-30 minutes)
+        - Short discussion (30-60 minutes)
+        - Focused session (1-2 hours)
+        - Half-day collaboration (2-4 hours)
+        - Full-day collaboration (4-8 hours)
+        - Multi-day collaboration (multiple days)
+        - Ongoing partnership
+        - Just need guidance (minimal time)
+      multiple: false
+    validations:
+      required: true
+
+  - type: dropdown
+    id: preferred-method
+    attributes:
+      label: Preferred Collaboration Method
+      description: How would you prefer to collaborate?
+      options:
+        - GitHub Discussion
+        - Video Call (Zoom/Teams)
+        - Slack/Chat Discussion
+        - Email Exchange
+        - Code Pairing Session
+        - Screen Share
+        - In-person Meeting (if applicable)
+        - Async Collaboration
+      multiple: false
+    validations:
+      required: true
+
+  - type: dropdown
+    id: availability
+    attributes:
+      label: Availability
+      description: When are you available for collaboration?
+      options:
+        - Immediately available
+        - Today (specific hours)
+        - This week
+        - Next week
+        - Flexible (coordinate timing)
+        - Weekends only
+        - Evenings only
+      multiple: false
+    validations:
+      required: true
+
+  - type: textarea
+    id: resources
+    attributes:
+      label: Resources Needed
+      description: What resources or access do you need?
+      placeholder: |
+        Examples:
+        - Access to specific repositories
+        - Development environment access
+        - Database access
+        - Documentation access
+        - Specific tools or software
+        - Meeting invitations
+        - Code review from specific team members
+
+  - type: textarea
+    id: skills
+    attributes:
+      label: Relevant Skills
+      description: What skills or expertise do you bring or need?
+      placeholder: |
+        Your skills:
+        - Frontend: React, TypeScript, CSS
+        - Backend: Python, FastAPI, PostgreSQL
+        - DevOps: Docker, CI/CD, AWS
+        - Testing: Jest, Cypress, Playwright
+        
+        Skills needed from collaborators:
+        - Domain expertise
+        - Technical experience
+        - Language proficiency
+        - System knowledge
+
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Constraints and Considerations
+      description: Any constraints or special considerations?
+      options:
+        - label: Time-sensitive deadline
+          description: This collaboration has a tight deadline
+        - label: Security-sensitive
+          description: This involves sensitive data or security considerations
+        - label: Requires production access
+          description: This requires access to production systems
+        - label: Customer-facing impact
+          description: This affects customer-facing features
+        - label: Legal/compliance requirements
+          description: This must meet specific legal or compliance requirements
+        - label: Budget considerations
+          description: There are budget or resource constraints
+        - label: Cross-team coordination
+          description: This requires coordination with multiple teams
+
+  - type: textarea
+    id: next-steps
+    attributes:
+      label: Proposed Next Steps
+      description: What do you think should happen next?
+      placeholder: |
+        Suggested approach:
+        1. Initial discussion to understand requirements
+        2. Review existing code/documentation together
+        3. Pair programming session for implementation
+        4. Code review and testing
+        5. Documentation updates
+        6. Knowledge transfer session
+
+  - type: textarea
+    id: questions
+    attributes:
+      label: Questions for Team
+      description: What questions do you have for the team?
+      placeholder: |
+        Examples:
+        - What's the best approach for this feature?
+        - Are there existing patterns I should follow?
+        - Who should I consult for domain knowledge?
+        - Are there any technical constraints I should know about?
+        - What testing approach do you recommend?
+
+  - type: checkboxes
+    id: agreement
+    attributes:
+      label: Collaboration Agreement
+      description: Please confirm your understanding and commitment
+      options:
+        - label: I understand this request will be publicly visible
+          required: true
+        - label: I commit to timely communication and updates
+          required: true
+        - label: I agree to follow project coding standards
+          required: true
+        - label: I understand this is a collaborative effort
+          required: true
+        - label: I will document my work appropriately
+          required: true
+        - label: I'm available for follow-up questions
+          required: true
+
+  - type: textarea
+    id: additional-info
+    attributes:
+      label: Additional Information
+      description: Any other information that would be helpful?
+      placeholder: |
+        Include anything else that would help us understand your needs:
+        - Previous similar work
+        - Relevant links or resources
+        - Preferred communication style
+        - Time zone considerations
+        - Language preferences
+
+  - type: markdown
+    attributes:
+      value: |
+        ### 📋 Collaboration Guidelines
+
+        **Response Time:** We aim to respond to collaboration requests within 24 hours during business days.
+
+        **Communication:** All collaboration discussions should happen in public channels (GitHub issues, discussions, or team Slack) unless security concerns require private communication.
+
+        **Documentation:** Significant collaborative work should be documented for knowledge sharing and future reference.
+
+        **Code Quality:** All code contributed should follow project standards and include appropriate tests.
+
+        **Knowledge Transfer:** Collaborators should ensure knowledge is transferred to the broader team.
+
+        ### 🤝 Getting Started
+
+        1. **Submit this issue** with as much detail as possible
+        2. **Team review** - We'll assess the request and assign appropriate collaborators
+        3. **Initial discussion** - We'll schedule a discussion to align on approach
+        4. **Collaboration** - Work together based on agreed approach
+        5. **Review and merge** - Code review and integration into main branch
+
+        We look forward to collaborating with you! 🚀

@@ -1,0 +1,181 @@
+name: TODO Task
+description: Create a trackable task for the project TODO list
+title: "[TODO] "
+labels: ["todo", "task", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for creating a TODO task! This will help us track and manage project tasks effectively.
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Task Category
+      description: What category does this task belong to?
+      options:
+        - Backend Development
+        - Frontend Development
+        - Database
+        - Infrastructure/DevOps
+        - Documentation
+        - Testing
+        - Security
+        - Performance
+        - Bug Fix
+        - Feature Implementation
+        - Code Refactoring
+        - Deployment
+        - Monitoring
+      multiple: false
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How important is this task?
+      options:
+        - Critical (blocks release)
+        - High (important for next milestone)
+        - Medium (should be done soon)
+        - Low (nice to have)
+        - Future consideration
+      multiple: false
+    validations:
+      required: true
+
+  - type: dropdown
+    id: complexity
+    attributes:
+      label: Complexity
+      description: How complex is this task?
+      options:
+        - Simple (1-2 hours)
+        - Medium (half day)
+        - Complex (1-2 days)
+        - Very Complex (3+ days)
+        - Requires Research
+      multiple: false
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Task Description
+      description: Clear and concise description of what needs to be done.
+      placeholder: Describe the task in detail...
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance Criteria
+      description: What are the specific conditions that must be met for this task to be considered complete?
+      placeholder: |
+        - [ ] Criterion 1
+        - [ ] Criterion 2
+        - [ ] Criterion 3
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: technical-details
+    attributes:
+      label: Technical Details
+      description: Any technical specifications, requirements, or considerations.
+      placeholder: Include technical requirements, APIs to use, database changes, etc.
+
+  - type: dropdown
+    id: components
+    attributes:
+      label: Affected Components
+      description: Which parts of the system will be affected?
+      options:
+        - Backend API
+        - Frontend UI
+        - Database Schema
+        - Docker Configuration
+        - CI/CD Pipeline
+        - Documentation
+        - Tests
+        - Performance
+        - Security
+      multiple: true
+    validations:
+      required: true
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Are there any dependencies or prerequisites for this task?
+      placeholder: List any tasks, features, or external dependencies this task relies on.
+
+  - type: dropdown
+    id: assignee-preference
+    attributes:
+      label: Preferred Assignee (Optional)
+      description: Is there someone specific who should work on this?
+      options:
+        - No preference
+        - Backend Team
+        - Frontend Team
+        - DevOps Team
+        - Full Stack Developer
+        - Security Team
+      multiple: false
+
+  - type: textarea
+    id: testing-requirements
+    attributes:
+      label: Testing Requirements
+      description: What testing is needed for this task?
+      placeholder: |
+        - Unit tests
+        - Integration tests
+        - E2E tests
+        - Performance tests
+        - Security tests
+
+  - type: dropdown
+    id: milestone
+    attributes:
+      label: Target Milestone
+      description: Which milestone should this be included in?
+      options:
+        - Current Sprint
+        - Next Sprint
+        - v1.1.0
+        - v1.2.0
+        - v2.0.0
+        - Backlog
+      multiple: false
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional Notes
+      description: Any additional information, context, or considerations.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Task Creation Checklist
+      options:
+        - label: I have checked for similar existing tasks
+          required: true
+        - label: I have provided clear acceptance criteria
+          required: true
+        - label: I have estimated complexity and priority
+          required: true
+        - label: I have identified affected components
+          required: true
+        - label: I understand this task will be tracked in the project board
+          required: true

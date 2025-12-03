@@ -1,0 +1,32 @@
+{
+  "name": "uns-kobetsu-docs",
+  "version": "1.0.0",
+  "description": "Documentation for UNS Kobetsu Integrated System",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "serve": "vitepress serve",
+    "preview": "vitepress preview",
+    "lint": "markdownlint **/*.md",
+    "format": "prettier --write **/*.md"
+  },
+  "dependencies": {
+    "vue": "^3.3.0",
+    "vitepress": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "markdownlint": "^0.34.0",
+    "prettier": "^3.0.0"
+  },
+  "keywords": [
+    "documentation",
+    "vitepress",
+    "vue",
+    "kobetsu",
+    "contracts"
+  ],
+  "author": "UNS Team",
+  "license": "MIT"
+}

@@ -158,3 +158,135 @@ updates:
 # Security updates are always created immediately
 # regardless of any schedule when Dependabot detects
 # a vulnerable dependency
+
+# Configuration for batched updates and review requirements
+registries:
+  docker-hub:
+    type: docker-registry
+    url: https://registry.hub.docker.com
+    username: ${{ secrets.DOCKER_USERNAME }}
+    password: ${{ secrets.DOCKER_PASSWORD }}
+
+# Additional configuration for better dependency management
+allow:
+  # Allow specific types of updates
+  - dependency-type: "direct"
+  - dependency-type: "indirect"
+  - dependency-type: "production"
+  - dependency-type: "development"
+
+# Define update behavior for different dependency types
+assignees:
+  - "dependabot[bot]"
+
+# Auto-merge configuration for safe updates
+auto-merge:
+  # Only auto-merge patch updates for documentation and dev dependencies
+  - dependency-type: "development"
+    update-types: ["patch"]
+    auto-merge: true
+  - dependency-type: "production"
+    update-types: ["patch"]
+    # Only auto-merge if all checks pass
+    auto-merge: true
+    required-status-checks:
+      strict: true
+      contexts:
+        - "CI - Backend"
+        - "CI - Frontend"
+        - "Security Scan"
+
+# Advanced grouping for better organization
+groups:
+  # Security updates group (highest priority)
+  security-updates:
+    patterns:
+      - "*"
+    update-types:
+      - "security"
+    dependency-type: "all"
+    applies-to: "security-updates"
+
+  # Major version updates (require manual review)
+  major-updates:
+    patterns:
+      - "*"
+    update-types:
+      - "major"
+    applies-to: "version-updates"
+
+  # Development dependencies
+  dev-dependencies:
+    patterns:
+      - "*"
+    dependency-type: "development"
+    applies-to: "development"
+
+# Custom labels for better categorization
+labels:
+  # Priority labels
+  - "priority-security"  # Security updates
+  - "priority-high"      # Major updates
+  - "priority-medium"    # Minor updates
+  - "priority-low"       # Patch updates
+
+  # Type labels
+  - "type-security"       # Security updates
+  - "type-feature"       # New features in deps
+  - "type-bugfix"       # Bug fixes in deps
+  - "type-chore"        # Maintenance updates
+
+  # Component labels
+  - "component-backend"   # Backend deps
+  - "component-frontend"  # Frontend deps
+  - "component-infra"    # Infrastructure deps
+  - "component-docs"      # Documentation deps
+
+# Review requirements based on update type
+review-requirements:
+  security-updates:
+    required-reviewers: 2
+    dismiss-stale-reviews: false
+    require-up-to-date: true
+  major-updates:
+    required-reviewers: 2
+    dismiss-stale-reviews: false
+    require-up-to-date: true
+  minor-updates:
+    required-reviewers: 1
+    dismiss-stale-reviews: true
+    require-up-to-date: false
+  patch-updates:
+    required-reviewers: 1
+    dismiss-stale-reviews: true
+    require-up-to-date: false
+
+# Notification settings
+notifications:
+  # Notify on security updates immediately
+  on-security-update: true
+  # Notify on failed updates
+  on-update-failure: true
+  # Daily digest of all updates
+  digest: true
+  schedule: "daily"
+
+# Quality checks for dependency updates
+quality-checks:
+  # Run security scan on all updates
+  security-scan: true
+  # Check for breaking changes
+  breaking-change-check: true
+  # Validate compatibility
+  compatibility-check: true
+  # Check license compatibility
+  license-check: true
+
+# Rate limiting to avoid overwhelming the team
+rate-limit:
+  # Maximum PRs per day
+  daily-limit: 10
+  # Maximum PRs per week
+  weekly-limit: 25
+  # Priority for security updates
+  security-override: true

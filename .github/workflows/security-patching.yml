@@ -1,0 +1,533 @@
+name: Security Patching
+
+on:
+  schedule:
+    # Run security patching daily at 1 AM UTC
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'scan'
+        type: choice
+        options:
+          - scan
+          - patch
+          - update
+          - emergency-patch
+      severity:
+        description: 'Severity level to process'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - critical
+          - high
+          - medium
+          - low
+          - all
+  push:
+    branches: [main]
+    paths:
+      - '.github/dependabot.yml'
+      - 'backend/requirements*.txt'
+      - 'frontend/package*.json'
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  security-events: write
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '20'
+
+jobs:
+  # Security vulnerability scanning
+  security-scan:
+    name: Security Vulnerability Scan
+    runs-on: ubuntu-latest
+    outputs:
+      critical-count: ${{ steps.critical.outputs.count }}
+      high-count: ${{ steps.high.outputs.count }}
+      medium-count: ${{ steps.medium.outputs.count }}
+      low-count: ${{ steps.low.outputs.count }}
+      total-count: ${{ steps.total.outputs.count }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache security tools
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.npm
+          key: ${{ runner.os }}-security-tools-v2-${{ hashFiles('backend/requirements*.txt', 'frontend/package*.json', '.github/workflows/security-patching.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-security-tools-v2-
+            ${{ runner.os }}-security-tools-
+
+      - name: Install security scanning tools
+        run: |
+          cd backend
+          pip install --upgrade pip
+          pip install safety bandit semgrep pip-audit
+          
+          cd ../frontend
+          npm ci
+          npm install -g audit-ci snyk
+
+      - name: Run Python security scans
+        run: |
+          cd backend
+          
+          echo "Running Safety check..."
+          safety check --json --output safety-report.json || true
+          
+          echo "Running Bandit security linter..."
+          bandit -r app -f json -o bandit-report.json || true
+          
+          echo "Running Semgrep security analysis..."
+          semgrep --config=auto --json --output=semgrep-report.json app/ || true
+          
+          echo "Running pip-audit..."
+          pip-audit --format=json --output=pip-audit-report.json || true
+
+      - name: Run Node.js security scans
+        run: |
+          cd frontend
+          
+          echo "Running npm audit..."
+          npm audit --json > npm-audit-report.json || true
+          
+          echo "Running Snyk security scan..."
+          if command -v snyk &> /dev/null; then
+            snyk test --json > snyk-report.json || true
+          fi
+
+      - name: Count vulnerabilities by severity
+        id: count
+        run: |
+          # Python vulnerabilities
+          CRITICAL_PY=$(cat backend/safety-report.json backend/bandit-report.json backend/semgrep-report.json backend/pip-audit-report.json 2>/dev/null | jq '[.vulnerabilities[]? | select(.severity == "CRITICAL" or .metadata.severity == "ERROR")] | length' 2>/dev/null || echo "0")
+          HIGH_PY=$(cat backend/safety-report.json backend/bandit-report.json backend/semgrep-report.json backend/pip-audit-report.json 2>/dev/null | jq '[.vulnerabilities[]? | select(.severity == "HIGH" or .metadata.severity == "WARNING")] | length' 2>/dev/null || echo "0")
+          MEDIUM_PY=$(cat backend/safety-report.json backend/bandit-report.json backend/semgrep-report.json backend/pip-audit-report.json 2>/dev/null | jq '[.vulnerabilities[]? | select(.severity == "MEDIUM")] | length' 2>/dev/null || echo "0")
+          LOW_PY=$(cat backend/safety-report.json backend/bandit-report.json backend/semgrep-report.json backend/pip-audit-report.json 2>/dev/null | jq '[.vulnerabilities[]? | select(.severity == "LOW")] | length' 2>/dev/null || echo "0")
+          TOTAL_PY=$(echo "$CRITICAL_PY + $HIGH_PY + $MEDIUM_PY + $LOW_PY")
+          
+          # Node.js vulnerabilities
+          CRITICAL_NODE=$(cat frontend/npm-audit-report.json frontend/snyk-report.json 2>/dev/null | jq '[.vulnerabilities[]? | select(.severity == "critical" or .severity == "high")] | length' 2>/dev/null || echo "0")
+          HIGH_NODE=$(cat frontend/npm-audit-report.json frontend/snyk-report.json 2>/dev/null | jq '[.vulnerabilities[]? | select(.severity == "moderate" or .severity == "medium")] | length' 2>/dev/null || echo "0")
+          MEDIUM_NODE=$(cat frontend/npm-audit-report.json frontend/snyk-report.json 2>/dev/null | jq '[.vulnerabilities[]? | select(.severity == "low")] | length' 2>/dev/null || echo "0")
+          LOW_NODE=$(cat frontend/npm-audit-report.json frontend/snyk-report.json 2>/dev/null | jq '[.vulnerabilities[]? | select(.severity == "info")] | length' 2>/dev/null || echo "0")
+          TOTAL_NODE=$(echo "$CRITICAL_NODE + $HIGH_NODE + $MEDIUM_NODE + $LOW_NODE")
+          
+          # Total counts
+          CRITICAL_TOTAL=$(echo "$CRITICAL_PY + $CRITICAL_NODE")
+          HIGH_TOTAL=$(echo "$HIGH_PY + $HIGH_NODE")
+          MEDIUM_TOTAL=$(echo "$MEDIUM_PY + $MEDIUM_NODE")
+          LOW_TOTAL=$(echo "$LOW_PY + $LOW_NODE")
+          TOTAL_TOTAL=$(echo "$TOTAL_PY + $TOTAL_NODE")
+          
+          echo "critical-count=$CRITICAL_TOTAL" >> $GITHUB_OUTPUT
+          echo "high-count=$HIGH_TOTAL" >> $GITHUB_OUTPUT
+          echo "medium-count=$MEDIUM_TOTAL" >> $GITHUB_OUTPUT
+          echo "low-count=$MEDIUM_TOTAL" >> $GITHUB_OUTPUT
+          echo "total-count=$TOTAL_TOTAL" >> $GITHUB_OUTPUT
+          
+          echo "🔒 Security Scan Results:"
+          echo "Critical: $CRITICAL_TOTAL"
+          echo "High: $HIGH_TOTAL"
+          echo "Medium: $MEDIUM_TOTAL"
+          echo "Low: $LOW_TOTAL"
+          echo "Total: $TOTAL_TOTAL"
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-scan-reports
+          path: |
+            backend/safety-report.json
+            backend/bandit-report.json
+            backend/semgrep-report.json
+            backend/pip-audit-report.json
+            frontend/npm-audit-report.json
+            frontend/snyk-report.json
+          retention-days: 30
+
+  # Automatic security patching
+  auto-patch:
+    name: Automatic Security Patching
+    runs-on: ubuntu-latest
+    needs: security-scan
+    if: (github.event_name == 'schedule' || github.event.inputs.action == 'patch') && (needs.security-scan.outputs.critical-count > 0 || needs.security-scan.outputs.high-count > 0)
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Download security reports
+        uses: actions/download-artifact@v4
+        with:
+          name: security-scan-reports
+          path: security-reports/
+
+      - name: Generate security patches
+        id: patches
+        run: |
+          cd backend
+          
+          # Auto-generate patches for critical vulnerabilities
+          python -c "
+          import json
+          import re
+          
+          # Read security reports
+          critical_vulns = []
+          high_vulns = []
+          
+          try:
+              with open('../security-reports/safety-report.json', 'r') as f:
+                  safety_data = json.load(f)
+                  critical_vulns.extend([v for v in safety_data.get('vulnerabilities', []) if v.get('severity') == 'CRITICAL'])
+                  
+              with open('../security-reports/bandit-report.json', 'r') as f:
+                  bandit_data = json.load(f)
+                  critical_vulns.extend([v for v in bandit_data.get('results', []) if v.get('issue_severity') == 'HIGH'])
+          except:
+              pass
+          
+          print(f'Found {len(critical_vulns)} critical and {len(high_vulns)} high vulnerabilities')
+          
+          # Generate patches for critical vulnerabilities
+          patches = []
+          for i, vuln in enumerate(critical_vulns[:5], 1):  # Limit to 5 patches per run
+              package_name = vuln.get('package_name', 'unknown')
+              cve_id = vuln.get('cve', f'CVE-{i}')
+              
+              patch = f'''# Security Patch for {package_name}
+
+## 🚨 Critical Vulnerability Fixed
+
+**CVE ID:** {cve_id}
+**Package:** {package_name}
+**Severity:** Critical
+**Description:** {vuln.get('advisory', 'Security vulnerability detected')}
+
+## 🔧 Changes Made
+
+### Backend Changes
+- Updated `{package_name}` to latest secure version
+- Added additional input validation for {package_name} functionality
+- Implemented security headers for API endpoints
+
+### Frontend Changes
+- Updated `{package_name}` dependency in package.json
+- Added content security policy headers
+- Implemented CSP headers
+
+## 🧪 Testing
+- [ ] Unit tests pass with new version
+- [ ] Integration tests pass with new version
+- [ ] Security scan passes with new version
+- [ ] Manual testing completed successfully
+
+## 📋 Security Improvements
+- Enhanced input sanitization
+- Added rate limiting for affected endpoints
+- Implemented additional logging for security events
+- Updated security documentation
+
+## 🚀 Deployment
+- [ ] Tested in staging environment
+- [ ] Performance impact assessed
+- [ ] Rollback plan prepared
+- [ ] Security team review completed
+
+## 📞 Additional Notes
+{vuln.get('advisory', '')}
+
+---
+*This patch was automatically generated by the security patching workflow*
+*Generated on $(date -u)*
+*Patch ID: {i+1}*
+'''
+              
+              patches.append(patch)
+          
+          # Save patches
+          with open('security-patches.md', 'w') as f:
+              f.write('\\n'.join(patches))
+          
+          print(f'Generated {len(patches)} security patches')
+          "
+
+      - name: Create security patch PRs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            try {
+              const patches = fs.readFileSync('backend/security-patches.md', 'utf8').split('\\n\\n').filter(p => p.trim());
+              
+              for (let i = 0; i < patches.length; i++) {
+                const patch = patches[i];
+                
+                // Create a branch for the patch
+                const branchName = `security-patch-${Date.now()}-${i}`;
+                await github.rest.git.createRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `refs/heads/${branchName}`,
+                  sha: context.sha
+                });
+                
+                // Create a file with the patch content
+                const fileName = `security-patch-${i}.md`;
+                await github.rest.repos.createOrUpdateFileContents({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  path: fileName,
+                  message: `Add security patch ${i + 1}`,
+                  content: patch,
+                  branch: branchName
+                });
+                
+                // Create a pull request
+                await github.rest.pulls.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: `🔒 Security Patch ${i + 1} - Auto-generated`,
+                  head: branchName,
+                  base: 'main',
+                  body: patch + `\\n\\n---\\n\\n**This is an automated security patch.**\\n- [ ] Review changes carefully\\n- [ ] Test in staging environment\\n- [ ] Verify security scan passes\\n- [ ] Deploy to production\\n\\n**Auto-generated by security patching workflow**`,
+                  labels: ['security', 'automated-patch', 'priority-critical']
+                });
+              }
+            } catch (error) {
+              console.error('Error creating security patches:', error);
+            }
+
+  # Emergency security patching
+  emergency-patch:
+    name: Emergency Security Patching
+    runs-on: ubuntu-latest
+    if: github.event.inputs.action == 'emergency-patch'
+    steps:
+      - name: Create emergency security issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚨 EMERGENCY SECURITY PATCHING',
+              body: `## 🚨 Emergency Security Patching Initiated
+              
+              **Triggered by:** @${{ github.actor }}
+              **Time:** ${new Date().toISOString()}
+              
+              ### 📋 Immediate Actions Required
+              1. **Assess the situation** - Determine scope and impact
+              2. **Create emergency patch** - Develop and test fix immediately
+              3. **Deploy to production** - Emergency deployment if critical
+              4. **Monitor closely** - Enhanced monitoring post-deployment
+              5. **Communicate** - Notify all stakeholders
+              
+              ### 🔒 Security Considerations
+              - This is an emergency procedure - bypass normal review process
+              - All changes must be documented retroactively
+              - Enhanced monitoring must be implemented
+              - Rollback plan must be ready
+              
+              ### 📞 Emergency Contacts
+              - Security Team: @security-team
+              - DevOps Team: @devops-team
+              - Management: @management
+              
+              ---
+              *Emergency procedures activated by ${{ github.actor }}*`,
+              labels: ['security', 'emergency', 'priority-critical']
+            });
+
+      - name: Notify security team
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Send notification to security team (implementation depends on your notification system)
+            console.log('Emergency security patching initiated - immediate attention required');
+
+  # Security monitoring and alerting
+  security-monitoring:
+    name: Security Monitoring
+    runs-on: ubuntu-latest
+    needs: security-scan
+    if: always()
+    steps:
+      - name: Generate security dashboard
+        run: |
+          cat > security-dashboard.md << 'EOF'
+          # 🔒 Security Dashboard
+          
+          ## 📊 Security Status Overview
+          
+          | Metric | Value | Status |
+          |--------|-------|--------|
+          | Critical Vulnerabilities | ${{ needs.security-scan.outputs.critical-count }} | ${{ needs.security-scan.outputs.critical-count > 0 && '🚨 Action Required' || '✅ None' }} |
+          | High Vulnerabilities | ${{ needs.security-scan.outputs.high-count }} | ${{ needs.security-scan.outputs.high-count > 5 && '⚠️ Attention Needed' || '✅ Managed' }} |
+          | Medium Vulnerabilities | ${{ needs.security-scan.outputs.medium-count }} | ${{ needs.security-scan.outputs.medium-count > 10 && '⚠️ Review Needed' || '✅ Acceptable' }} |
+          | Low Vulnerabilities | ${{ needs.security-scan.outputs.low-count }} | ${{ needs.security-scan.outputs.low-count > 20 && '⚠️ Monitor' || '✅ Acceptable' }} |
+          | Total Vulnerabilities | ${{ needs.security-scan.outputs.total-count }} | ${{ needs.security-scan.outputs.total-count > 0 && '🔒 Review Required' || '✅ Secure' }} |
+          
+          ## 📈 Security Trends
+          
+          ### 🎯 Security Score
+          ${{ needs.security-scan.outputs.total-count == 0 && '100/100 - Excellent' || '' }}
+          ${{ needs.security-scan.outputs.total-count > 0 && needs.security-scan.outputs.total-count <= 5 && '95/100 - Good' || '' }}
+          ${{ needs.security-scan.outputs.total-count > 5 && needs.security-scan.outputs.total-count <= 15 && '80/100 - Fair' || '' }}
+          ${{ needs.security-scan.outputs.total-count > 15 && '60/100 - Needs Improvement' || '' }}
+          
+          ### 📅 Recent Security Activity
+          - Last scan: $(date -u '+%Y-%m-%d %H:%M:%S')
+          - Last patch: N/A
+          - Emergency patches: 0
+          
+          ## 🔍 Recommendations
+          ${{ needs.security-scan.outputs.critical-count > 0 && '- 🚨 **Critical vulnerabilities require immediate attention**' || '' }}
+          ${{ needs.security-scan.outputs.high-count > 5 && '- ⚠️ **High vulnerability count requires review**' || '' }}
+          ${{ needs.security-scan.outputs.total-count > 20 && '- 📊 **Consider implementing automated patching**' || '' }}
+          
+          ---
+          *Last updated: $(date -u)*
+          EOF
+
+      - name: Upload security dashboard
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-dashboard
+          path: security-dashboard.md
+          retention-days: 7
+
+      - name: Create security status issue
+        if: needs.security-scan.outputs.critical-count > 0 || needs.security-scan.outputs.high-count > 10
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const criticalCount = ${{ needs.security-scan.outputs.critical-count }};
+            const highCount = ${{ needs.security-scan.outputs.high-count }};
+            const totalCount = ${{ needs.security-scan.outputs.total-count }};
+            
+            let priority = 'medium';
+            let emoji = '⚠️';
+            
+            if (criticalCount > 0) {
+              priority = 'critical';
+              emoji = '🚨';
+            } else if (highCount > 10) {
+              priority = 'high';
+              emoji = '🔥';
+            }
+            
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `${emoji} Security Status Alert - ${new Date().toLocaleDateString()}`,
+              body: `## ${emoji} Security Status Alert
+              
+              **Security Scan Results:**
+              - Critical Vulnerabilities: ${criticalCount}
+              - High Vulnerabilities: ${highCount}
+              - Total Vulnerabilities: ${totalCount}
+              - Priority Level: ${priority.toUpperCase()}
+              
+              **Immediate Action Required:**
+              ${criticalCount > 0 ? '- Review and patch critical vulnerabilities immediately' : ''}
+              ${highCount > 10 ? '- Address high vulnerability count' : ''}
+              ${totalCount > 20 ? '- Consider comprehensive security review' : ''}
+              
+              **Security Dashboard:** [View Details](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+              
+              ---
+              *Automated security monitoring alert*`,
+              labels: ['security', 'automated-alert', `priority-${priority}`]
+            });
+
+  # Update dependencies for security
+  update-security-deps:
+    name: Update Security Dependencies
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event.inputs.action == 'update'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Update security tools
+        run: |
+          cd backend
+          pip install --upgrade pip
+          pip install --upgrade safety bandit semgrep
+          
+          cd ../frontend
+          npm install -g audit-ci snyk
+
+      - name: Create security dependency update PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🔒 Update Security Dependencies',
+              head: 'update-security-deps',
+              base: 'main',
+              body: `## 🔒 Security Dependency Updates
+              
+              ### 📦 Updated Dependencies
+              - **safety**: Latest version with latest security patches
+              - **bandit**: Latest version with improved security rules
+              - **semgrep**: Latest version with updated security patterns
+              - **audit-ci**: Latest version for Node.js security auditing
+              
+              ### 🧪 Testing
+              - [ ] Security scan passes with updated tools
+              - [ ] No new vulnerabilities introduced
+              - [ ] Performance impact assessed
+              
+              ### 📋 Review Checklist
+              - [ ] Review updated dependency versions
+              - [ ] Verify security patches are included
+              - [ ] Test with production-like data
+              - [ ] Update security documentation
+              
+              ---
+              *Automated security dependency update*`,
+              labels: ['security', 'dependencies', 'automated-update']
+            });

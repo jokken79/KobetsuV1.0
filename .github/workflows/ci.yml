@@ -12,11 +12,18 @@ env:
   NODE_VERSION: '20'
   POSTGRES_VERSION: '15'
 
+# Concurrency to prevent multiple runs of the same workflow
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  # Backend linting
+  # Backend linting - optimized with better caching
   lint-backend:
     name: Lint Backend
     runs-on: ubuntu-latest
+    outputs:
+      cache-hit: ${{ steps.cache.outputs.cache-hit }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -26,20 +33,23 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Cache pip packages
+      - name: Cache pip packages and linting tools
+        id: cache
         uses: actions/cache@v4
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-lint-${{ hashFiles('backend/requirements*.txt') }}
+          path: |
+            ~/.cache/pip
+            ~/.local/share/virtualenvs
+          key: ${{ runner.os }}-pip-lint-v2-${{ hashFiles('backend/requirements*.txt', 'backend/pyproject.toml', '.github/workflows/ci.yml') }}
           restore-keys: |
+            ${{ runner.os }}-pip-lint-v2-
             ${{ runner.os }}-pip-lint-
-            ${{ runner.os }}-pip-
 
       - name: Install linting dependencies
         run: |
           cd backend
-          pip install --upgrade pip
-          pip install flake8 black isort mypy
+          pip install --upgrade pip setuptools wheel
+          pip install flake8 black isort mypy bandit safety
 
       - name: Run Black
         run: |
@@ -63,10 +73,13 @@ jobs:
           mypy app --ignore-missing-imports
         continue-on-error: true
 
-  # Backend testing
+  # Backend testing - optimized with parallel test execution
   test-backend:
     name: Test Backend
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        test-group: [unit, integration, api]
     services:
       postgres:
         image: postgres:${{ env.POSTGRES_VERSION }}
@@ -110,47 +123,64 @@ jobs:
       - name: Cache pip packages
         uses: actions/cache@v4
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-test-${{ hashFiles('backend/requirements*.txt') }}
+          path: |
+            ~/.cache/pip
+            ~/.local/share/virtualenvs
+          key: ${{ runner.os }}-pip-test-v2-${{ hashFiles('backend/requirements*.txt', 'backend/pyproject.toml', '.github/workflows/ci.yml') }}
           restore-keys: |
+            ${{ runner.os }}-pip-test-v2-
             ${{ runner.os }}-pip-test-
             ${{ runner.os }}-pip-
 
       - name: Install dependencies
         run: |
           cd backend
-          pip install --upgrade pip
+          pip install --upgrade pip setuptools wheel
           pip install -r requirements.txt
-          pip install pytest pytest-cov pytest-asyncio httpx
+          pip install pytest pytest-cov pytest-asyncio httpx pytest-xdist
 
       - name: Run database migrations
         run: |
           cd backend
           alembic upgrade head
 
-      - name: Run tests with coverage
+      - name: Run tests with coverage (${{ matrix.test-group }})
         run: |
           cd backend
-          pytest -v --cov=app --cov-report=xml --cov-report=html --cov-report=term-missing
+          case "${{ matrix.test-group }}" in
+            unit)
+              pytest -v --cov=app --cov-report=xml --cov-report=term-missing tests/unit/ -n auto
+              ;;
+            integration)
+              pytest -v --cov=app --cov-report=xml --cov-append --cov-report=term-missing tests/integration/ -n auto
+              ;;
+            api)
+              pytest -v --cov=app --cov-report=xml --cov-append --cov-report=term-missing tests/api/ -n auto
+              ;;
+          esac
 
       - name: Upload coverage reports
         uses: actions/upload-artifact@v4
+        if: matrix.test-group == 'unit'
         with:
           name: backend-coverage
           path: backend/htmlcov/
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
+        if: matrix.test-group == 'unit'
         with:
           file: ./backend/coverage.xml
           flags: backend
           name: backend-coverage
         continue-on-error: true
 
-  # Frontend linting
+  # Frontend linting - optimized with better caching
   lint-frontend:
     name: Lint Frontend
     runs-on: ubuntu-latest
+    outputs:
+      cache-hit: ${{ steps.cache.outputs.cache-hit }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -160,42 +190,47 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Cache node modules
+      - name: Cache node modules and build artifacts
+        id: cache
         uses: actions/cache@v4
         with:
           path: |
             ~/.npm
             frontend/node_modules
             frontend/.next/cache
-          key: ${{ runner.os }}-node-lint-${{ hashFiles('frontend/package-lock.json') }}
+          key: ${{ runner.os }}-node-lint-v2-${{ hashFiles('frontend/package-lock.json', 'frontend/package.json', '.github/workflows/ci.yml') }}
           restore-keys: |
+            ${{ runner.os }}-node-lint-v2-
             ${{ runner.os }}-node-lint-
             ${{ runner.os }}-node-
 
       - name: Install dependencies
         run: |
           cd frontend
-          npm ci
+          npm ci --prefer-offline --no-audit
 
       - name: Run ESLint
         run: |
           cd frontend
-          npm run lint
+          npm run lint -- --max-warnings=0
 
       - name: Check TypeScript
         run: |
           cd frontend
-          npx tsc --noEmit
+          npx tsc --noEmit --incremental false
 
       - name: Check formatting with Prettier
         run: |
           cd frontend
           npx prettier --check "**/*.{js,jsx,ts,tsx,json,css,md}"
 
-  # Frontend testing
+  # Frontend testing - optimized with parallel execution
   test-frontend:
     name: Test Frontend
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        test-group: [unit, integration, e2e]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -205,43 +240,56 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Cache node modules
+      - name: Cache node modules and build artifacts
         uses: actions/cache@v4
         with:
           path: |
             ~/.npm
             frontend/node_modules
             frontend/.next/cache
-          key: ${{ runner.os }}-node-test-${{ hashFiles('frontend/package-lock.json') }}
+          key: ${{ runner.os }}-node-test-v2-${{ hashFiles('frontend/package-lock.json', 'frontend/package.json', '.github/workflows/ci.yml') }}
           restore-keys: |
+            ${{ runner.os }}-node-test-v2-
             ${{ runner.os }}-node-test-
             ${{ runner.os }}-node-
 
       - name: Install dependencies
         run: |
           cd frontend
-          npm ci
+          npm ci --prefer-offline --no-audit
 
-      - name: Run tests
+      - name: Run tests (${{ matrix.test-group }})
         run: |
           cd frontend
-          npm test -- --coverage --watchAll=false
+          case "${{ matrix.test-group }}" in
+            unit)
+              npm run test:unit -- --coverage --watchAll=false --maxWorkers=2
+              ;;
+            integration)
+              npm run test:integration -- --coverage --watchAll=false --maxWorkers=2
+              ;;
+            e2e)
+              npm run test:e2e -- --maxWorkers=1
+              ;;
+          esac
 
       - name: Upload coverage reports
         uses: actions/upload-artifact@v4
+        if: matrix.test-group == 'unit'
         with:
           name: frontend-coverage
           path: frontend/coverage/
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
+        if: matrix.test-group == 'unit'
         with:
           file: ./frontend/coverage/lcov.info
           flags: frontend
           name: frontend-coverage
         continue-on-error: true
 
-  # Build Docker images
+  # Build Docker images - optimized with parallel builds
   build-docker:
     name: Build Docker Images
     runs-on: ubuntu-latest
@@ -263,8 +311,10 @@ jobs:
           tags: uns-kobetsu-${{ matrix.service }}:ci-${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+          load: true
 
-  # Integration tests
+  # Integration tests - optimized with better service management
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
@@ -306,31 +356,39 @@ jobs:
           NEXT_PUBLIC_API_URL=http://uns-kobetsu-backend:8000/api/v1
           EOF
 
-      - name: Start services
+      - name: Start services with health checks
         run: |
           docker compose up -d
-
-      - name: Wait for services
-        run: |
-          timeout 60 bash -c 'until docker compose exec -T backend curl -f http://localhost:8000/health; do sleep 2; done'
-          timeout 60 bash -c 'until docker compose exec -T frontend curl -f http://localhost:3000; do sleep 2; done'
+          echo "Waiting for services to be healthy..."
+          timeout 120 bash -c 'until docker compose exec -T backend curl -f http://localhost:8000/health; do sleep 2; done'
+          timeout 120 bash -c 'until docker compose exec -T frontend curl -f http://localhost:3000; do sleep 2; done'
 
       - name: Run integration tests
         run: |
-          docker compose exec -T backend pytest tests/integration -v
+          docker compose exec -T backend pytest tests/integration -v --tb=short
+        continue-on-error: true
+
+      - name: Run API contract tests
+        run: |
+          docker compose exec -T backend pytest tests/api -v --tb=short
         continue-on-error: true
 
       - name: Show logs on failure
         if: failure()
         run: |
-          docker compose logs --tail=50
+          echo "=== Backend logs ==="
+          docker compose logs --tail=100 backend
+          echo "=== Frontend logs ==="
+          docker compose logs --tail=100 frontend
+          echo "=== Database logs ==="
+          docker compose logs --tail=50 db
 
-      - name: Stop services
+      - name: Stop services and cleanup
         if: always()
         run: |
-          docker compose down -v
+          docker compose down -v --remove-orphans
 
-  # Security scanning
+  # Security scanning - optimized with caching
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
@@ -345,6 +403,7 @@ jobs:
           scan-ref: '.'
           format: 'sarif'
           output: 'trivy-results.sarif'
+          cache: true
 
       - name: Upload Trivy results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
@@ -357,10 +416,30 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Cache security tools
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.local/bin
+          key: ${{ runner.os }}-security-tools-v1-${{ hashFiles('backend/requirements*.txt', '.github/workflows/ci.yml') }}
+
       - name: Check Python dependencies for vulnerabilities
         run: |
           cd backend
-          pip install safety
+          pip install --upgrade pip
+          pip install safety bandit
           pip install -r requirements.txt
-          safety check --json
+          safety check --json --output safety-report.json || true
+          bandit -r app -f json -o bandit-report.json || true
         continue-on-error: true
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            backend/safety-report.json
+            backend/bandit-report.json
+            trivy-results.sarif
+          retention-days: 30

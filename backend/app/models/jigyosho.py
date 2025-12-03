@@ -6,7 +6,7 @@ Jigyosho (Regional Office) model - matches Base Madre schema
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
-from app.database import Base
+from app.core.database import Base
 
 
 class Jigyosho(Base):

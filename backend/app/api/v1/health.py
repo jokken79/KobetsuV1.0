@@ -15,7 +15,7 @@ import redis
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.rate_limit import limiter
+# from app.core.rate_limit import limiter
 
 router = APIRouter()
 
@@ -144,8 +144,7 @@ def get_system_info() -> Dict[str, Any]:
 
 
 @router.get("/basic")
-@limiter.limit("1000 per minute")
-async def health_basic(request: Request):
+async def health_basic():
     """Basic health check for load balancers and monitoring."""
     return {
         "status": "healthy",
@@ -155,9 +154,7 @@ async def health_basic(request: Request):
 
 
 @router.get("/detailed")
-@limiter.limit("100 per minute")
 async def health_detailed(
-    request: Request,
     db: Session = Depends(get_db)
 ):
     """Detailed health check with dependency status."""
@@ -188,9 +185,7 @@ async def health_detailed(
 
 
 @router.get("/ready")
-@limiter.limit("1000 per minute")
 async def readiness_check(
-    request: Request,
     db: Session = Depends(get_db)
 ):
     """Readiness check for container orchestration."""
@@ -225,8 +220,7 @@ async def readiness_check(
 
 
 @router.get("/live")
-@limiter.limit("1000 per minute")
-async def liveness_check(request: Request):
+async def liveness_check():
     """Liveness check for container orchestration."""
     # Simple check that the application is running
     return {

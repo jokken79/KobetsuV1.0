@@ -15,8 +15,8 @@ from sqlalchemy.dialects import postgresql
 
 
 # revision identifiers, used by Alembic.
-revision = '004_add_contract_cycle_fields'
-down_revision = '003_add_performance_indexes'
+revision = '004_contract_cycle_fields'
+down_revision = '003_performance_indexes'
 branch_labels = None
 depends_on = None
 

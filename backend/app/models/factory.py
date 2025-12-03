@@ -116,15 +116,15 @@ class Factory(Base):
     # Contract Cycle Configuration
     # ========================================
     contract_cycle_type = Column(
-        Enum(ContractCycleType),
+        Enum('monthly', 'annual', name='contract_cycle_type', create_type=False),
         nullable=False,
-        default=ContractCycleType.ANNUAL,
+        default='annual',
         comment="月次契約 or 年間契約"
     )
     cycle_day_type = Column(
-        Enum(ContractCycleDayType),
+        Enum('fixed', 'month_end', name='contract_cycle_day_type', create_type=False),
         nullable=False,
-        default=ContractCycleDayType.FIXED,
+        default='fixed',
         comment="固定日 or 月末"
     )
     fiscal_year_end_month = Column(

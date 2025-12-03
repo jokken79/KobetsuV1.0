@@ -1,0 +1,352 @@
+name: Project Board Automation
+
+on:
+  issues:
+    types: [opened, closed, reopened, labeled, unlabeled, assigned]
+  pull_request:
+    types: [opened, closed, ready_for_review, review_requested, review_request_removed]
+  schedule:
+    # Run daily at 9 AM UTC to update project boards
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'sync'
+        type: choice
+        options:
+          - sync
+          - cleanup
+          - report
+
+permissions:
+  issues: write
+  pull-requests: write
+  checks: read
+
+jobs:
+  # Sync issues and PRs to project boards
+  sync-projects:
+    name: Sync Project Boards
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Sync to Development Board
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: projects } = await github.rest.projects.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+
+            // Find or create development project
+            let devProject = projects.find(p => p.name === 'Development Board');
+            if (!devProject) {
+              console.log('Development project not found, creating...');
+              // Project creation would need to be done manually first
+              return;
+            }
+
+            // Get open issues and PRs
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              sort: 'updated',
+              direction: 'desc'
+            });
+
+            // Get project columns
+            const { data: columns } = await github.rest.projects.listColumns({
+              project_id: devProject.id
+            });
+
+            const todoColumn = columns.find(c => c.name === 'To Do');
+            const inProgressColumn = columns.find(c => c.name === 'In Progress');
+            const reviewColumn = columns.find(c => c.name === 'Review');
+            const doneColumn = columns.find(c => c.name === 'Done');
+
+            // Process each issue/PR
+            for (const issue of issues) {
+              if (issue.pull_request) {
+                // Handle PRs
+                await handlePullRequest(issue, reviewColumn, doneColumn);
+              } else {
+                // Handle issues
+                await handleIssue(issue, todoColumn, inProgressColumn, doneColumn);
+              }
+            }
+
+            async function handlePullRequest(pr, reviewColumn, doneColumn) {
+              const labels = pr.labels.map(l => l.name);
+              
+              let targetColumn;
+              if (pr.state === 'closed' && pr.merged) {
+                targetColumn = doneColumn;
+              } else if (labels.includes('needs-review') || pr.requested_reviewers.length > 0) {
+                targetColumn = reviewColumn;
+              } else {
+                targetColumn = reviewColumn; // Default PRs to review
+              }
+
+              // Add to project board
+              try {
+                await github.rest.projects.createCard({
+                  column_id: targetColumn.id,
+                  content_id: pr.id,
+                  content_type: 'PullRequest'
+                });
+                console.log(`Added PR #${pr.number} to ${targetColumn.name}`);
+              } catch (error) {
+                // Card might already exist
+                console.log(`PR #${pr.number} already in project`);
+              }
+            }
+
+            async function handleIssue(issue, todoColumn, inProgressColumn, doneColumn) {
+              const labels = issue.labels.map(l => l.name);
+              
+              let targetColumn;
+              if (labels.includes('in-progress')) {
+                targetColumn = inProgressColumn;
+              } else if (labels.includes('done') || labels.includes('completed')) {
+                targetColumn = doneColumn;
+              } else {
+                targetColumn = todoColumn;
+              }
+
+              // Add to project board
+              try {
+                await github.rest.projects.createCard({
+                  column_id: targetColumn.id,
+                  content_id: issue.id,
+                  content_type: 'Issue'
+                });
+                console.log(`Added issue #${issue.number} to ${targetColumn.name}`);
+              } catch (error) {
+                // Card might already exist
+                console.log(`Issue #${issue.number} already in project`);
+              }
+            }
+
+  # Auto-label issues based on content
+  auto-label:
+    name: Auto-label Issues
+    runs-on: ubuntu-latest
+    if: github.event_name == 'issues' && github.event.action == 'opened'
+    steps:
+      - name: Auto-label based on content
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const title = issue.title.toLowerCase();
+            const body = (issue.body || '').toLowerCase();
+            const labels = [];
+
+            // Auto-label based on title patterns
+            if (title.includes('[bug]') || title.includes('fix') || body.includes('error') || body.includes('broken')) {
+              labels.push('bug');
+            }
+            if (title.includes('[feature]') || title.includes('add') || body.includes('new feature')) {
+              labels.push('enhancement');
+            }
+            if (title.includes('[todo]') || title.includes('task')) {
+              labels.push('todo');
+            }
+            if (title.includes('[tech-debt]') || body.includes('refactor') || body.includes('cleanup')) {
+              labels.push('technical-debt');
+            }
+            if (title.includes('[perf]') || body.includes('slow') || body.includes('performance')) {
+              labels.push('performance');
+            }
+            if (title.includes('[security]') || body.includes('vulnerability') || body.includes('security')) {
+              labels.push('security');
+            }
+            if (title.includes('[doc]') || body.includes('documentation')) {
+              labels.push('documentation');
+            }
+
+            // Auto-label based on component mentions
+            if (body.includes('backend') || body.includes('api') || title.includes('api')) {
+              labels.push('backend');
+            }
+            if (body.includes('frontend') || body.includes('ui') || body.includes('react')) {
+              labels.push('frontend');
+            }
+            if (body.includes('database') || body.includes('sql') || body.includes('migration')) {
+              labels.push('database');
+            }
+            if (body.includes('docker') || body.includes('deploy') || body.includes('ci/cd')) {
+              labels.push('infrastructure');
+            }
+
+            // Add labels if any were identified
+            if (labels.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                labels: labels
+              });
+              console.log(`Added labels: ${labels.join(', ')}`);
+            }
+
+  # Priority assignment based on labels
+  assign-priority:
+    name: Assign Priority
+    runs-on: ubuntu-latest
+    if: github.event_name == 'issues' && (github.event.action == 'labeled' || github.event.action == 'opened')
+    steps:
+      - name: Set priority based on labels
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const labels = issue.labels.map(l => l.name);
+            
+            let priorityLabel = null;
+            
+            // Determine priority based on existing labels
+            if (labels.includes('security') || labels.includes('critical')) {
+              priorityLabel = 'priority-critical';
+            } else if (labels.includes('bug') && !labels.includes('low')) {
+              priorityLabel = 'priority-high';
+            } else if (labels.includes('enhancement') || labels.includes('feature')) {
+              priorityLabel = 'priority-medium';
+            } else if (labels.includes('technical-debt') || labels.includes('documentation')) {
+              priorityLabel = 'priority-low';
+            }
+
+            // Add priority label if determined and not already present
+            if (priorityLabel && !labels.includes(priorityLabel)) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                labels: [priorityLabel]
+              });
+              console.log(`Added priority label: ${priorityLabel}`);
+            }
+
+  # Generate weekly project report
+  generate-report:
+    name: Generate Project Report
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' && github.event.schedule == '0 9 * * 1' # Monday 9 AM
+    steps:
+      - name: Generate weekly report
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const oneWeekAgo = new Date();
+            oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+            const since = oneWeekAgo.toISOString();
+
+            // Get issues updated in the last week
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'all',
+              sort: 'updated',
+              direction: 'desc',
+              since: since
+            });
+
+            // Get PRs updated in the last week
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'all',
+              sort: 'updated',
+              direction: 'desc'
+            });
+
+            // Categorize issues
+            const openedIssues = issues.filter(i => i.created_at > since && !i.pull_request);
+            const closedIssues = issues.filter(i => i.closed_at > since && !i.pull_request);
+            const openedPRs = prs.filter(p => p.created_at > since);
+            const mergedPRs = prs.filter(p => p.merged_at && p.merged_at > since);
+
+            // Generate report
+            const report = `# Weekly Project Report
+            ## Summary for ${oneWeekAgo.toLocaleDateString()} - ${new Date().toLocaleDateString()}
+
+            ### 📊 Statistics
+            - **New Issues:** ${openedIssues.length}
+            - **Closed Issues:** ${closedIssues.length}
+            - **New Pull Requests:** ${openedPRs.length}
+            - **Merged Pull Requests:** ${mergedPRs.length}
+
+            ### 🐛 Recent Issues
+            ${openedIssues.slice(0, 5).map(i => `- #${i.number}: ${i.title} (${i.state})`).join('\n')}
+
+            ### ✨ Recent Pull Requests
+            ${openedPRs.slice(0, 5).map(p => `- #${p.number}: ${p.title} (${p.state})`).join('\n')}
+
+            ### 🏆 Completed Work
+            ${closedIssues.slice(0, 3).map(i => `- #${i.number}: ${i.title}`).join('\n')}
+
+            ---
+            *Generated on ${new Date().toISOString()}*`;
+
+            // Create issue for report
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Weekly Report - ${oneWeekAgo.toLocaleDateString()}`,
+              body: report,
+              labels: ['report', 'weekly']
+            });
+
+  # Cleanup old project cards
+  cleanup:
+    name: Cleanup Project Cards
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'cleanup'
+    steps:
+      - name: Cleanup old cards
+        uses: actions/github-script@v7
+        with:
+          script: |
+            console.log('Starting project board cleanup...');
+            
+            // Get projects
+            const { data: projects } = await github.rest.projects.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+
+            for (const project of projects) {
+              // Get columns
+              const { data: columns } = await github.rest.projects.listColumns({
+                project_id: project.id
+              });
+
+              for (const column of columns) {
+                // Get cards in column
+                const { data: cards } = await github.rest.projects.listCards({
+                  column_id: column.id
+                });
+
+                for (const card of cards) {
+                  if (card.content_url) {
+                    // Check if issue/PR still exists
+                    try {
+                      await github.request(card.content_url);
+                    } catch (error) {
+                      // Issue/PR doesn't exist, delete card
+                      await github.rest.projects.deleteCard({
+                        card_id: card.id
+                      });
+                      console.log(`Deleted orphaned card from ${column.name}`);
+                    }
+                  }
+                }
+              }
+            }

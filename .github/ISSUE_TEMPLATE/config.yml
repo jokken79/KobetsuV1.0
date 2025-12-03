@@ -4,8 +4,14 @@ contact_links:
     url: mailto:security@example.com
     about: Please report sensitive security vulnerabilities via email
   - name: Documentation
-    url: https://github.com/username/UNS-Kobetsu-Integrated/wiki
+    url: https://github.com/uns-kikaku/UNS-Kobetsu-Integrated/wiki
     about: Check our documentation for answers to common questions
   - name: Community Support
-    url: https://github.com/username/UNS-Kobetsu-Integrated/discussions
+    url: https://github.com/uns-kikaku/UNS-Kobetsu-Integrated/discussions
     about: Please ask and answer questions in GitHub Discussions
+  - name: Project Board
+    url: https://github.com/uns-kikaku/UNS-Kobetsu-Integrated/projects
+    about: View our project boards and task tracking
+  - name: Performance Monitoring
+    url: https://github.com/uns-kikaku/UNS-Kobetsu-Integrated/issues?q=is%3Aissue+is%3Aopen+label%3Aperformance
+    about: Track performance improvements and metrics

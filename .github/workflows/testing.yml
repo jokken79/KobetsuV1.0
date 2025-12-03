@@ -1,0 +1,608 @@
+name: Enhanced Testing
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+    types: [opened, synchronize, reopened]
+  schedule:
+    # Run comprehensive tests daily at 3 AM UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      test-type:
+        description: 'Type of tests to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - unit
+          - integration
+          - e2e
+          - performance
+          - security
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'test'
+        type: choice
+        options:
+          - test
+          - staging
+          - production
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+  issues: write
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '20'
+  POSTGRES_VERSION: '15'
+
+jobs:
+  # Backend unit tests with coverage
+  backend-unit-tests:
+    name: Backend Unit Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        test-group: [models, services, api, utils]
+    services:
+      postgres:
+        image: postgres:${{ env.POSTGRES_VERSION }}
+        env:
+          POSTGRES_USER: kobetsu_admin
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: kobetsu_test_db_${{ matrix.test-group }}
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://kobetsu_admin:test_password@localhost:5432/kobetsu_test_db_${{ matrix.test-group }}
+      REDIS_URL: redis://localhost:6379
+      SECRET_KEY: test-secret-key-for-ci
+      TESTING: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.local/share/virtualenvs
+          key: ${{ runner.os }}-python-test-${{ matrix.test-group }}-v3-${{ hashFiles('backend/requirements*.txt', 'backend/pyproject.toml', '.github/workflows/testing.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-python-test-${{ matrix.test-group }}-v3-
+            ${{ runner.os }}-python-test-${{ matrix.test-group }}-
+            ${{ runner.os }}-python-test-
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install --upgrade pip setuptools wheel
+          pip install -r requirements.txt
+          pip install pytest pytest-cov pytest-xdist pytest-mock pytest-asyncio factory-boy
+
+      - name: Run database migrations
+        run: |
+          cd backend
+          alembic upgrade head
+
+      - name: Run unit tests (${{ matrix.test-group }})
+        run: |
+          cd backend
+          case "${{ matrix.test-group }}" in
+            models)
+              pytest tests/unit/test_models.py -v --cov=app.models --cov-report=xml --cov-report=html --cov-report=term-missing -n auto
+              ;;
+            services)
+              pytest tests/unit/test_services/ -v --cov=app.services --cov-report=xml --cov-append --cov-report=html --cov-report=term-missing -n auto
+              ;;
+            api)
+              pytest tests/unit/test_api/ -v --cov=app.api --cov-report=xml --cov-append --cov-report=html --cov-report=term-missing -n auto
+              ;;
+            utils)
+              pytest tests/unit/test_utils.py -v --cov=app.utils --cov-report=xml --cov-append --cov-report=html --cov-report=term-missing -n auto
+              ;;
+          esac
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage-${{ matrix.test-group }}
+          path: |
+            backend/htmlcov/
+            backend/coverage.xml
+          retention-days: 7
+
+      - name: Generate coverage badge
+        run: |
+          cd backend
+          COVERAGE=$(python -c "
+          import xml.etree.ElementTree as ET
+          try:
+              tree = ET.parse('coverage.xml')
+              root = tree.getroot()
+              coverage = root.attrib.get('line-rate', '0')
+              coverage_pct = float(coverage) * 100
+              print(f'{coverage_pct:.1f}')
+          except:
+              print('0.0')
+          ")
+          echo "Coverage: ${COVERAGE}%"
+          echo "COVERAGE=${COVERAGE}" >> $GITHUB_ENV
+
+      - name: Comment coverage on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const coverage = process.env.COVERAGE;
+            const coverageNum = parseFloat(coverage);
+            
+            let message = `## 📊 Backend Unit Test Coverage\n\n**Current Coverage:** ${coverage}%\n\n`;
+            
+            if (coverageNum >= 80) {
+              message += '✅ **Good coverage!** (>80%)\n';
+            } else if (coverageNum >= 60) {
+              message += '⚠️ **Moderate coverage** (60-80%)\n';
+            } else {
+              message += '❌ **Low coverage** (<60%)\n';
+            }
+            
+            message += '\n### 📈 Coverage Trend\n';
+            message += '- Target: 80%\n';
+            message += `- Current: ${coverage}%\n`;
+            message += `- Status: ${coverageNum >= 80 ? 'On track' : 'Needs improvement'}\n`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: message
+            });
+
+  # Frontend unit tests with coverage
+  frontend-unit-tests:
+    name: Frontend Unit Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        test-group: [components, pages, utils, hooks]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache Node.js dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            frontend/node_modules
+            frontend/.next/cache
+          key: ${{ runner.os }}-node-test-${{ matrix.test-group }}-v3-${{ hashFiles('frontend/package*.json', '.github/workflows/testing.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-node-test-${{ matrix.test-group }}-v3-
+            ${{ runner.os }}-node-test-${{ matrix.test-group }}-
+            ${{ runner.os }}-node-test-
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci --prefer-offline --no-audit
+
+      - name: Run unit tests (${{ matrix.test-group }})
+        run: |
+          cd frontend
+          case "${{ matrix.test-group }}" in
+            components)
+              npm run test:components -- --coverage --watchAll=false --maxWorkers=2
+              ;;
+            pages)
+              npm run test:pages -- --coverage --watchAll=false --maxWorkers=2
+              ;;
+            utils)
+              npm run test:utils -- --coverage --watchAll=false --maxWorkers=2
+              ;;
+            hooks)
+              npm run test:hooks -- --coverage --watchAll=false --maxWorkers=2
+              ;;
+          esac
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage-${{ matrix.test-group }}
+          path: frontend/coverage/
+          retention-days: 7
+
+      - name: Extract coverage percentage
+        run: |
+          cd frontend
+          COVERAGE=$(cat coverage/coverage-summary.json | jq '.total.lines.pct' 2>/dev/null || echo "0.0")
+          echo "Coverage: ${COVERAGE}%"
+          echo "COVERAGE=${COVERAGE}" >> $GITHUB_ENV
+
+      - name: Comment coverage on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const coverage = process.env.COVERAGE;
+            const coverageNum = parseFloat(coverage);
+            
+            let message = `## 📊 Frontend Unit Test Coverage\n\n**Current Coverage:** ${coverage}%\n\n`;
+            
+            if (coverageNum >= 80) {
+              message += '✅ **Good coverage!** (>80%)\n';
+            } else if (coverageNum >= 60) {
+              message += '⚠️ **Moderate coverage** (60-80%)\n';
+            } else {
+              message += '❌ **Low coverage** (<60%)\n';
+            }
+            
+            message += '\n### 📈 Coverage Trend\n';
+            message += '- Target: 80%\n';
+            message += `- Current: ${coverage}%\n`;
+            message += `- Status: ${coverageNum >= 80 ? 'On track' : 'Needs improvement'}\n`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: message
+            });
+
+  # Integration tests
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [backend-unit-tests, frontend-unit-tests]
+    services:
+      postgres:
+        image: postgres:${{ env.POSTGRES_VERSION }}
+        env:
+          POSTGRES_USER: kobetsu_admin
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: kobetsu_integration_test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://kobetsu_admin:test_password@localhost:5432/kobetsu_integration_test_db
+      REDIS_URL: redis://localhost:6379
+      SECRET_KEY: test-secret-key-for-ci
+      TESTING: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Compose
+        run: |
+          docker compose version
+
+      - name: Start services
+        run: |
+          docker compose up -d --build
+
+      - name: Wait for services
+        run: |
+          echo "Waiting for services to be healthy..."
+          timeout 120 bash -c 'until docker compose exec -T backend curl -f http://localhost:8000/health; do sleep 2; done'
+          timeout 120 bash -c 'until docker compose exec -T frontend curl -f http://localhost:3000; do sleep 2; done'
+
+      - name: Run API integration tests
+        run: |
+          docker compose exec -T backend pytest tests/integration/test_api.py -v --tb=short
+
+      - name: Run database integration tests
+        run: |
+          docker compose exec -T backend pytest tests/integration/test_database.py -v --tb=short
+
+      - name: Run service integration tests
+        run: |
+          docker compose exec -T backend pytest tests/integration/test_services.py -v --tb=short
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          echo "=== Backend logs ==="
+          docker compose logs --tail=50 backend
+          echo "=== Frontend logs ==="
+          docker compose logs --tail=50 frontend
+          echo "=== Database logs ==="
+          docker compose logs --tail=30 db
+
+      - name: Stop services
+        if: always()
+        run: |
+          docker compose down -v --remove-orphans
+
+  # E2E tests with Playwright
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Playwright
+        run: |
+          cd frontend
+          npm ci
+          npx playwright install --with-deps
+
+      - name: Start application
+        run: |
+          docker compose up -d --build
+          echo "Waiting for application to start..."
+          timeout 120 bash -c 'until curl -f http://localhost:3010; do sleep 2; done'
+
+      - name: Run E2E tests
+        run: |
+          cd frontend
+          npm run test:e2e
+        env:
+          BASE_URL: http://localhost:3010
+
+      - name: Upload E2E test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-test-results
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          retention-days: 7
+
+      - name: Upload E2E screenshots
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-screenshots
+          path: frontend/playwright-screenshots/
+          retention-days: 30
+
+      - name: Stop services
+        if: always()
+        run: |
+          docker compose down -v --remove-orphans
+
+  # Performance tests
+  performance-tests:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    if: github.event.inputs.test-type == 'performance' || github.event.inputs.test-type == 'all'
+    needs: integration-tests
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install performance testing tools
+        run: |
+          pip install locust pytest-benchmark
+
+      - name: Start application
+        run: |
+          docker compose up -d --build
+          timeout 60 bash -c 'until curl -f http://localhost:8000/health; do sleep 2; done'
+
+      - name: Run API performance tests
+        run: |
+          cd backend
+          pytest tests/performance/test_api_performance.py -v --benchmark-only
+
+      - name: Run load tests
+        run: |
+          cd tests/performance
+          locust -f locustfile.py --headless -u 10 -r 2 -t 30s --html=report.html
+
+      - name: Upload performance reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-reports
+          path: |
+            tests/performance/report.html
+            backend/.benchmarks/
+          retention-days: 7
+
+      - name: Stop services
+        if: always()
+        run: |
+          docker compose down -v --remove-orphans
+
+  # Security tests
+  security-tests:
+    name: Security Tests
+    runs-on: ubuntu-latest
+    if: github.event.inputs.test-type == 'security' || github.event.inputs.test-type == 'all'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install security testing tools
+        run: |
+          cd backend
+          pip install -r requirements.txt
+          pip install bandit pytest-security
+
+      - name: Run security tests
+        run: |
+          cd backend
+          pytest tests/security/ -v --tb=short
+
+      - name: Run static security analysis
+        run: |
+          cd backend
+          bandit -r app -f json -o bandit-report.json || true
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            backend/bandit-report.json
+            tests/security/reports/
+          retention-days: 7
+
+  # Generate comprehensive test report
+  test-report:
+    name: Generate Test Report
+    runs-on: ubuntu-latest
+    needs: [backend-unit-tests, frontend-unit-tests, integration-tests]
+    if: always() && (github.event_name == 'schedule' || github.event.inputs.test-type == 'all')
+    steps:
+      - name: Download all test artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: test-artifacts/
+
+      - name: Generate comprehensive test report
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            // Read coverage data
+            let backendCoverage = '0.0';
+            let frontendCoverage = '0.0';
+            
+            try {
+              const backendData = fs.readFileSync('test-artifacts/backend-coverage-api/coverage.xml', 'utf8');
+              backendCoverage = backendData.match(/line-rate="([^"]+)"/)?.[1] || '0.0';
+            } catch (e) {
+              console.log('Backend coverage not found');
+            }
+            
+            try {
+              const frontendData = fs.readFileSync('test-artifacts/frontend-coverage-components/coverage-summary.json', 'utf8');
+              frontendCoverage = JSON.parse(frontendData).total.lines.pct.toString();
+            } catch (e) {
+              console.log('Frontend coverage not found');
+            }
+            
+            const backendNum = parseFloat(backendCoverage) * 100;
+            const frontendNum = parseFloat(frontendCoverage);
+            
+            const report = `# 🧪 Comprehensive Test Report
+            
+            ## 📊 Test Summary
+            - **Backend Coverage:** ${backendNum.toFixed(1)}%
+            - **Frontend Coverage:** ${frontendNum.toFixed(1)}%
+            - **Overall Status:** ${backendNum >= 80 && frontendNum >= 80 ? '✅ Healthy' : '⚠️ Needs Improvement'}
+            
+            ## 🎯 Coverage Targets
+            | Component | Current | Target | Status |
+            |-----------|---------|--------|--------|
+            | Backend | ${backendNum.toFixed(1)}% | 80% | ${backendNum >= 80 ? '✅ On Track' : '❌ Below Target'} |
+            | Frontend | ${frontendNum.toFixed(1)}% | 80% | ${frontendNum >= 80 ? '✅ On Track' : '❌ Below Target'} |
+            
+            ## 📈 Recommendations
+            ${backendNum < 80 ? '- Increase backend unit test coverage\n' : ''}
+            ${frontendNum < 80 ? '- Increase frontend unit test coverage\n' : ''}
+            '- Add more integration tests\n'
+            '- Implement E2E test automation\n'
+            '- Set up performance benchmarks\n'
+            
+            ## 🔗 Detailed Reports
+            - [Backend Coverage Artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            - [Frontend Coverage Artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            - [Integration Test Results](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            
+            ---
+            *Report generated on ${new Date().toISOString()}*`;
+
+            // Create issue for report
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Test Report - ${new Date().toLocaleDateString()}`,
+              body: report,
+              labels: ['testing', 'report', 'automated']
+            });
+
+  # Coverage badge generation
+  coverage-badge:
+    name: Generate Coverage Badge
+    runs-on: ubuntu-latest
+    needs: [backend-unit-tests, frontend-unit-tests]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Generate coverage badge
+        run: |
+          # This would generate a coverage badge and commit it to the repo
+          # Implementation would depend on your badge generation strategy
+          echo "Coverage badge generation..."
+
+      - name: Commit coverage badge
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add docs/badges/
+          git diff --staged --quiet || git commit -m "docs: Update coverage badge [skip ci]"
+          git push

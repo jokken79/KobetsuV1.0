@@ -6,7 +6,7 @@ Plants (工場) are physical locations where workers are dispatched.
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
-from app.database import Base
+from app.core.database import Base
 
 
 class Plant(Base):

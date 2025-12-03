@@ -1,0 +1,516 @@
+name: Advanced Security Features
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - '.github/workflows/security-advanced.yml'
+      - '.github/workflows/security-patching.yml'
+      - 'backend/app/**'
+      - 'frontend/app/**'
+  schedule:
+    # Run security checks daily at 1 AM UTC
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Security action to perform'
+        required: true
+        default: 'scan'
+        type: choice
+        options:
+          - scan
+          - audit
+          - compliance
+          - monitor
+          - remediate
+      severity:
+        description: 'Severity level to process'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - critical
+          - high
+          - medium
+          - low
+          - all
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+  security-events: write
+  actions: read
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # Comprehensive security scanning
+  comprehensive-scan:
+    name: Comprehensive Security Scan
+    runs-on: ubuntu-latest
+    outputs:
+      critical-issues: ${{ steps.scan.outputs.critical-count }}
+      high-issues: ${{ steps.scan.outputs.high-count }}
+      medium-issues: ${{ steps.scan.outputs.medium-count }}
+      low-issues: ${{ steps.scan.outputs.low-count }}
+      total-issues: ${{ steps.scan.outputs.total-issues }}
+      security-score: ${{ steps.scan.outputs.security-score }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up security tools
+        run: |
+          pip install --upgrade pip
+          pip install bandit safety semgrep pip-audit
+          pip install truffleHog
+          pip install detect-secrets
+          pip install pyjwt cryptography
+
+      - name: Run comprehensive security scan
+        id: scan
+        run: |
+          echo "Running comprehensive security scan..."
+          
+          # Static code analysis with multiple tools
+          echo "Running Bandit security linter..."
+          bandit -r backend/app -f json -o bandit-report.json || true
+          
+          echo "Running Semgrep security analysis..."
+          semgrep --config=auto --json --output=semgrep-report.json backend/app/ || true
+          
+          echo "Running Safety dependency check..."
+          safety check --json --output=safety-report.json || true
+          
+          echo "Running pip-audit..."
+          pip-audit --format=json --output=pip-audit-report.json || true
+          
+          echo "Running TruffleHog secret scanning..."
+          truffleHog filesystem --json --output=trufflehog-report.json . || true
+          
+          echo "Running detect-secrets..."
+          detect-secrets scan --all-files --baseline .secrets.baseline || true
+          
+          # Count issues by severity
+          CRITICAL_BANDIT=$(cat bandit-report.json | jq '[.results[]? | select(.issue_severity == "HIGH")] | length' 2>/dev/null || echo "0")
+          HIGH_BANDIT=$(cat bandit-report.json | jq '[.results[]? | select(.issue_severity == "MEDIUM")] | length' 2>/dev/null || echo "0")
+          MEDIUM_BANDIT=$(cat bandit-report.json | jq '[.results[]? | select(.issue_severity == "LOW")] | length' 2>/dev/null || echo "0")
+          
+          CRITICAL_SEMGREP=$(cat semgrep-report.json | jq '[.results[]? | select(.metadata.severity == "ERROR")] | length' 2>/dev/null || echo "0")
+          HIGH_SEMGREP=$(cat semgrep-report.json | jq '[.results[]? | select(.metadata.severity == "WARNING")] | length' 2>/dev/null || echo "0")
+          MEDIUM_SEMGREP=$(cat semgrep-report.json | jq '[.results[]? | select(.metadata.severity == "INFO")] | length' 2>/dev/null || echo "0")
+          
+          CRITICAL_SAFETY=$(cat safety-report.json | jq '[.vulnerabilities[]? | select(.advisory.severity == "HIGH")] | length' 2>/dev/null || echo "0")
+          HIGH_SAFETY=$(cat safety-report.json | jq '[.vulnerabilities[]? | select(.advisory.severity == "MEDIUM")] | length' 2>/dev/null || echo "0")
+          CRITICAL_PIPAUDIT=$(cat pip-audit-report.json | jq '[.vulnerabilities[]? | select(.severity == "HIGH")] | length' 2>/dev/null || echo "0")
+          
+          # Total counts
+          TOTAL_CRITICAL=$((CRITICAL_BANDIT + CRITICAL_SEMGREP + CRITICAL_SAFETY + CRITICAL_PIPAUDIT))
+          TOTAL_HIGH=$((HIGH_BANDIT + HIGH_SEMGREP + HIGH_SAFETY))
+          TOTAL_MEDIUM=$((MEDIUM_BANDIT + MEDIUM_SEMGREP))
+          TOTAL_LOW=$((MEDIUM_BANDIT + LOW_BANDIT + MEDIUM_SEMGREP))
+          
+          # Calculate security score (0-100, lower is better)
+          SECURITY_SCORE=$(python -c "
+          total_issues = $TOTAL_CRITICAL + $TOTAL_HIGH + $TOTAL_MEDIUM + $TOTAL_LOW
+          if total_issues == 0:
+              score = 100
+          elif total_issues <= 5:
+              score = 90 - (total_issues * 10)
+          elif total_issues <= 15:
+              score = 80 - (total_issues * 6)
+          elif total_issues <= 30:
+              score = 70 - (total_issues * 3)
+          else:
+              score = 60 - (total_issues * 2)
+          print(int(score))
+          ")
+          
+          echo "critical-count=$TOTAL_CRITICAL" >> $GITHUB_OUTPUT
+          echo "high-count=$TOTAL_HIGH" >> $GITHUB_OUTPUT
+          echo "medium-count=$TOTAL_MEDIUM" >> $GITHUB_OUTPUT
+          echo "low-count=$TOTAL_LOW" >> $GITHUB_OUTPUT
+          echo "security-score=$SECURITY_SCORE" >> $GITHUB_OUTPUT
+          
+          echo "Security scan completed with score: $SECURITY_SCORE"
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: comprehensive-security-scan
+          path: |
+            bandit-report.json
+            semgrep-report.json
+            safety-report.json
+            pip-audit-report.json
+            trufflehog-report.json
+          retention-days: 30
+
+      - name: Create security dashboard
+        run: |
+          cat > security-dashboard.md << 'EOF
+          # 🔒 UNS Kobetsu Security Dashboard
+          
+          Last updated: $(date -u)
+          
+          ## 📊 Security Overview
+          
+          ### 🛡️ Security Score: ${{ steps.scan.outputs.security-score }}/100
+          
+          | Severity | Count | Status |
+          |--------|-------|--------|
+          | Critical | ${{ steps.scan.outputs.critical-count }} | ${{ steps.scan.outputs.critical-count > 0 && '🔴 Action Required' || '✅ Resolved' }} |
+          | High | ${{ steps.scan.outputs.high-count }} | ${{ steps.scan.outputs.high-count > 5 && '⚠️ Attention Needed' || '✅ Managed' }} |
+          | Medium | ${{ steps.scan.outputs.medium-count }} | ${{ steps.scan.outputs.medium-count > 10 && '⚠️ Review Needed' || '✅ Managed' }} |
+          | Low | ${{ steps.scan.outputs.low-count }} | ${{ steps.scan.outputs.low-count > 20 && '⚠️ Monitor' || '✅ Acceptable' }} |
+          | Total | ${{ steps.scan.outputs.total-issues }} | - |
+          
+          ### 📈 Security Trend
+          
+          Current security posture is **${{ steps.scan.outputs.security-score > 80 && 'Strong' || steps.scan.outputs.security-score > 60 && 'Good' || steps.scan.outputs.security-score > 40 && 'Fair' || 'Poor' }}**
+          
+          ### 🎯 Target
+          Security score target: >90 (Excellent)
+          
+          ---
+          *Dashboard updated automatically*
+          EOF
+
+      - name: Create security alert if needed
+        if: steps.scan.outputs.security-score < 70
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚨 Security Alert - Score Below Threshold',
+              body: `## 🚨 Security Alert
+              
+              **Security Score:** ${{ steps.scan.outputs.security-score }}/100
+              **Threshold:** 70
+              **Status:** ⚠️ Needs Attention
+              
+              ### 📊 Issue Summary
+              - **Critical Issues:** ${{ steps.scan.outputs.critical-count }}
+              - **High Issues:** ${{ steps.scan.outputs.high-count }}
+              - **Total Issues:** ${{ steps.scan.outputs.total-issues }}
+              
+              ### 🔧 Immediate Actions Required
+              1. Address all critical and high severity issues immediately
+              2. Review and remediate medium and low severity issues this week
+              3. Schedule comprehensive security review meeting
+              4. Implement additional security scanning tools
+              5. Consider security training for development team
+              
+              ---
+              *Alert triggered on ${new Date().toISOString()}*`,
+              labels: ['security', 'alert', 'urgent']
+            });
+
+  # Security compliance monitoring
+  compliance-monitoring:
+    name: Security Compliance Monitoring
+    runs-on: ubuntu-latest
+    if: github.event.inputs.action == 'compliance' || github.event.inputs.action == 'monitor'
+    steps:
+      - name: Check 労働者派遣法第26条 compliance
+        run: |
+          echo "Checking 労働者派遣法第26条 compliance..."
+          
+          # This would check compliance with Japanese labor dispatch law requirements
+          # Implementation would depend on your specific compliance checking system
+          
+          python -c "
+          import re
+          
+          # Check for required contract fields in code
+          required_fields = [
+              '派遣先の名称', '派遣先の住所', '派遣先の事業内容',
+              '派遣先の指揮命令者', '個別契約書の作成日', '個別契約書の有効期間',
+              '派遣労働者の氏名', '派遣労働者の生年月日',
+              '派遣労働者の職種', '派遣労働者の業務内容',
+              '派遣労働者の賃金', '派遣労働者の勤務時間',
+              '派遣労働者の休憩時間', '派遣労働者の休日',
+              '派遣労働者の安全衛生', '派遣労働者のその他'
+          ]
+          
+          compliance_score = 0
+          missing_fields = []
+          
+          # Search for these fields in codebase
+          for field in required_fields:
+              pattern = re.compile(field, re.IGNORECASE)
+              if pattern.search(open('backend/app/models/', encoding='utf-8').read()):
+                  compliance_score += 2
+              else:
+                  missing_fields.append(field)
+          
+          print(f'Compliance Score: {compliance_score}/16')
+          print(f'Missing Fields: {missing_fields}')
+          "
+
+      - name: Generate compliance report
+        run: |
+          cat > compliance-report.md << 'EOF
+          # 📋 労働者派遣法第26条 Compliance Report
+          
+          Generated: $(date -u)
+          
+          ## 📊 Compliance Score
+          
+          **Overall Score:** $(python -c "import re; required_fields = ['派遣先の名称', '派遣先の住所', '派遣先の事業内容', '派遣先の指揮命令者', '個別契約書の作成日', '個別契約書の有効期間', '派遣労働者の氏名', '派遣労働者の生年月日', '派遣労働者の職種', '派遣労働者の業務内容', '派遣労働者の賃金', '派遣労働者の勤務時間', '派遣労働者の休憩時間', '派遣労働者の休日', '派遣労働者の安全衛生', '派遣労働者のその他']; print(f'Compliance Score: {re.search(open(\"backend/app/models/\", encoding=\"utf-8\").read() / 16}')" 2>/dev/null || echo "0")
+          
+          | Score | Status |
+          |------|-------|--------|
+          | 16/16 (100%) | ✅ Fully Compliant |
+          | 15/16 (94%) | ✅ Excellent |
+          | 12-15/16 (75-94%) | ✅ Good |
+          | 8-11/16 (50-75%) | ⚠️ Needs Attention |
+          | <8/16 (<50%) | ❌ Non-Compliant |
+          | 0 | ❌ Critical Issues |
+          
+          ### 📋 Missing Required Fields
+          
+          $(python -c "
+          import re
+          required_fields = ['派遣先の名称', '派遣先の住所', '派遣先の事業内容', '派遣先の指揮命令者', '個別契約書の作成日', '個別契約書の有効期間', '派遣労働者の氏名', '派遣労働者の生年月日', '派遣労働者の職種', '派遣労働者の業務内容', '派遣労働者の賃金', '派遣労働者の勤務時間', '派遣労働者の休憩時間', '派遣労働者の休日', '派遣労働者の安全衛生', '派遣労働者のその他']
+          missing_fields = []
+          for field in required_fields:
+              pattern = re.compile(field, re.IGNORECASE)
+              if not pattern.search(open('backend/app/models/', encoding='utf-8').read()):
+                  missing_fields.append(field)
+          print('\\n- '.join(missing_fields))
+          ")
+          
+          ### 🔧 Recommendations
+          
+          1. Implement missing required fields immediately
+          2. Add validation for all 16 contract fields
+          3. Update contract generation templates to include all required fields
+          4. Add compliance checks to CI/CD pipeline
+          5. Regular compliance audits and training
+          
+          ---
+          *Compliance report generated on $(date -u)*
+          EOF
+
+      - name: Upload compliance report
+        uses: actions/upload-artifact@v4
+        with:
+          name: compliance-report
+          path: compliance-report.md
+          retention-days: 90
+
+      - name: Create compliance issue if needed
+        if: steps.compliance-check.outputs.compliance-score < '16'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '⚠️ 労働者派遣法第26条 Compliance Alert',
+              body: `## ⚠️ 労働者派遣法第26条 Compliance Alert
+              
+              **Compliance Score:** Below threshold
+              **Required Fields Missing:** Compliance check detected missing required fields
+              
+              ### 📋 Immediate Actions Required
+              1. Implement all 16 required contract fields in models and forms
+              2. Update contract generation to ensure compliance
+              3. Add validation for required fields in API endpoints
+              4. Update documentation with compliance requirements
+              5. Schedule regular compliance reviews
+              
+              ### 🔍 Technical Details
+              
+              The compliance check system identified potential gaps in the required fields implementation.
+              
+              ---
+              *Compliance alert triggered on ${new Date().toISOString()}*`,
+              labels: ['compliance', 'security', 'urgent', '労働者派遣法']
+            });
+
+  # Security remediation workflow
+  security-remediation:
+    name: Security Remediation
+    runs-on: ubuntu-latest
+    if: github.event.inputs.action == 'remediate'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create security remediation plan
+        run: |
+          cat > security-remediation-plan.md << 'EOF
+          # 🔒 Security Remediation Plan
+          
+          Created: $(date -u)
+          
+          ## 🎯 Remediation Objectives
+          
+          1. Address all critical and high severity security issues
+          2. Implement security best practices across the codebase
+          3. Enhance input validation and sanitization
+          4. Improve authentication and authorization mechanisms
+          5. Add comprehensive logging and monitoring
+          6. Ensure compliance with 労働者派遣法第26条
+          
+          ## 📋 Phase 1: Critical Issue Resolution (Week 1)
+          
+          ### Priority Issues
+          - [ ] SQL injection vulnerabilities in API endpoints
+          - [ ] Missing input validation in user forms
+          - [ ] Hardcoded credentials in configuration files
+          - [ ] Insufficient error handling and logging
+          
+          ### Actions
+          - Review and fix all SQL injection points
+          - Implement comprehensive input validation
+          - Remove hardcoded credentials and use environment variables
+          - Add proper error handling and logging
+          - Update API documentation with security guidelines
+          
+          ## 📋 Phase 2: Security Hardening (Week 2)
+          
+          ### Security Enhancements
+          - Implement rate limiting on API endpoints
+          - Add CSRF protection mechanisms
+          - Enhance session management security
+          - Implement content security policies
+          - Add security headers and CSP
+          
+          ## 📋 Phase 3: Monitoring & Maintenance (Week 3-4)
+          
+          ### Ongoing Security
+          - Implement continuous security scanning
+          - Regular security audits and penetration testing
+          - Security training for development team
+          - Update security documentation and guidelines
+          
+          ---
+          *Remediation plan created on $(date -u)*
+          EOF
+
+      - name: Create remediation issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🔒 Security Remediation Plan',
+              body: `## 🔒 Security Remediation Plan
+              
+              **Created:** $(date -u)
+              
+              Please review the attached remediation plan and provide feedback on implementation priorities.
+              
+              ### 📋 Next Steps
+              1. Review and approve remediation plan
+              2. Assign security team to implement Phase 1
+              3. Set timeline for remediation completion
+              4. Schedule follow-up meeting
+              
+              ---
+              *Remediation plan attached*
+              
+              **Security Score Target:** >90 within 4 weeks`,
+              labels: ['security', 'remediation', 'plan'],
+              priority: 'high'
+            });
+
+  # Performance testing with security focus
+  security-performance-testing:
+    name: Security Performance Testing
+    runs-on: ubuntu-latest
+    if: github.event.inputs.action == 'scan' || github.event.inputs.action == 'monitor'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up security testing tools
+        run: |
+          pip install --upgrade pip
+          pip install locust pytest-benchmark
+
+      - name: Run security-focused performance tests
+        run: |
+          echo "Running security-focused performance tests..."
+          
+          # Test authentication endpoints under load
+          locust -f security-performance-test.py --headless -u 10 -r 2 -t 30s \
+            --html=security-perf-report.html \
+            --host=http://localhost:8000
+          
+          # Test input validation with malicious payloads
+          python -m pytest tests/security/test_input_validation.py -v \
+            --html=security-input-test-report.html
+          
+          # Test for common vulnerabilities (XSS, SQL injection, etc.)
+          python -m pytest tests/security/test_vulnerabilities.py -v \
+            --html=security-vuln-test-report.html
+
+      - name: Upload security performance reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-performance-tests
+          path: |
+            security-perf-report.html
+            security-input-test-report.html
+            security-vuln-test-report.html
+          retention-days: 30
+
+  # Generate comprehensive security summary
+  security-summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs: [comprehensive-scan, compliance-monitoring]
+    steps:
+      - name: Generate security summary
+        run: |
+          cat > security-summary.md << 'EOF
+          # 🔒 UNS Kobetsu Security Summary
+          
+          Generated: $(date -u)
+          
+          ## 📊 Security Overview
+          
+          ### 🛡️ Security Score
+          ${{ needs.comprehensive-scan.outputs.security-score }}/100
+          
+          ### 📋 Issue Breakdown
+          | Severity | Count | Status |
+          |--------|-------|--------|
+          | Critical | ${{ needs.comprehensive-scan.outputs.critical-count }} | ${{ needs.comprehensive-scan.outputs.critical-count > 0 && '🔴 Action Required' || '✅ Resolved' }} |
+          | High | ${{ needs.comprehensive-scan.outputs.high-count }} | ${{ needs.comprehensive-scan.outputs.high-count > 5 && '⚠️ Attention Needed' || '✅ Managed' }} |
+          | Medium | ${{ needs.comprehensive-scan.outputs.medium-count }} | ${{ needs.comprehensive-scan.outputs.medium-count > 10 && '⚠️ Review Needed' || '✅ Managed' }} |
+          | Low | ${{ needs.comprehensive-scan.outputs.low-count }} | ${{ needs.comprehensive-scan.outputs.low-count > 20 && '⚠️ Monitor' || '✅ Acceptable' }} |
+          | Total | ${{ needs.comprehensive-scan.outputs.total-issues }} | - |
+          
+          ### 📈 Compliance Status
+          
+          **労働者派遣法第26条:** ${{ needs.compliance-monitoring.outputs.compliance-score }}/16 points
+          
+          ### 🎯 Security Recommendations
+          
+          1. Continue regular security scanning and monitoring
+          2. Address all identified security issues promptly
+          3. Implement security best practices in development workflow
+          4. Regular security training and awareness
+          5. Maintain comprehensive security documentation
+          
+          ---
+          *Security summary generated on $(date -u)*
+          EOF
+
+      - name: Upload security summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-summary
+          path: security-summary.md
+          retention-days: 90

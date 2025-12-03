@@ -16,8 +16,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '005_add_factory_contact_positions'
-down_revision = '004_add_contract_cycle_fields'
+revision = '005_factory_contact_positions'
+down_revision = '004_contract_cycle_fields'
 branch_labels = None
 depends_on = None
 

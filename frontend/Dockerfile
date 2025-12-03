@@ -9,18 +9,13 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci --only=production && npm cache clean --force
+RUN npm install --legacy-peer-deps && npm cache clean --force
 
 # Copy application
 COPY . .
 
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nextjs -u 1001 && \
-    chown -R nextjs:nodejs /app
-
-# Switch to non-root user
-USER nextjs
+# Create .next directory with proper permissions (for development with volumes)
+RUN mkdir -p /app/.next && chmod 777 /app/.next
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \

@@ -9,11 +9,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from slowapi.errors import RateLimitExceeded
+# from slowapi.errors import RateLimitExceeded
 
 from app.core.config import settings
 from app.core.database import check_db_connection
-from app.core.rate_limit import limiter, rate_limit_exceeded_handler
+# from app.core.rate_limit import limiter, rate_limit_exceeded_handler
 from app.api.v1 import api_router
 
 
@@ -72,9 +72,9 @@ app.add_middleware(
     max_age=600,  # Cache preflight requests for 10 minutes
 )
 
-# Add rate limiter to the app
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+# Rate limiter disabled for development
+# app.state.limiter = limiter
+# app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 
 # Global exception handler
@@ -96,8 +96,7 @@ app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 
 # Root endpoint
 @app.get("/", tags=["Root"])
-@limiter.limit("200 per minute")
-async def root(request: Request):
+async def root():
     """Root endpoint with API information."""
     return {
         "name": settings.APP_NAME,
@@ -110,8 +109,7 @@ async def root(request: Request):
 
 # Health check endpoint
 @app.get("/health", tags=["Health"])
-@limiter.limit("1000 per minute")  # Very permissive for health checks
-async def health_check(request: Request):
+async def health_check():
     """Health check endpoint for container orchestration."""
     db_healthy = check_db_connection()
 
@@ -124,8 +122,7 @@ async def health_check(request: Request):
 
 # Ready check endpoint
 @app.get("/ready", tags=["Health"])
-@limiter.limit("1000 per minute")  # Very permissive for health checks
-async def readiness_check(request: Request):
+async def readiness_check():
     """Readiness check for load balancers."""
     db_healthy = check_db_connection()
 

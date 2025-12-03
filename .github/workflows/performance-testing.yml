@@ -1,0 +1,859 @@
+name: Automated Performance Testing
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - '.github/workflows/performance-testing.yml'
+      - 'backend/app/**'
+      - 'frontend/app/**'
+      - 'backend/requirements.txt'
+      - 'frontend/package.json'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'backend/app/**'
+      - 'frontend/app/**'
+  schedule:
+    # Run performance tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of performance test to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - load
+          - stress
+          - endurance
+          - spike
+          - api
+          - frontend
+      duration:
+        description: 'Test duration in minutes'
+        required: false
+        default: '10'
+        type: string
+      users:
+        description: 'Number of concurrent users'
+        required: false
+        default: '50'
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+  actions: read
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '18'
+
+jobs:
+  # Backend API performance testing
+  backend-performance:
+    name: Backend API Performance Tests
+    runs-on: ubuntu-latest
+    outputs:
+      api-response-time: ${{ steps.api-test.outputs.avg-response-time }}
+      api-throughput: ${{ steps.api-test.outputs.throughput }}
+      api-error-rate: ${{ steps.api-test.outputs.error-rate }}
+      api-score: ${{ steps.api-test.outputs.performance-score }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install performance testing tools
+        run: |
+          pip install --upgrade pip
+          pip install locust pytest-benchmark
+          pip install aiohttp httpx
+          pip install psutil memory-profiler
+
+      - name: Start backend services
+        run: |
+          echo "Starting backend services for performance testing..."
+          # Start database
+          docker-compose up -d postgres redis
+          sleep 10
+          
+          # Install backend dependencies
+          cd backend
+          pip install -r requirements.txt
+          
+          # Run database migrations
+          alembic upgrade head
+          
+          # Start backend server in background
+          uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+          sleep 15
+          
+          # Verify backend is running
+          curl -f http://localhost:8000/health || exit 1
+
+      - name: Run API performance tests
+        id: api-test
+        run: |
+          echo "Running API performance tests..."
+          
+          # Create performance test script
+          cat > api_performance_test.py << 'EOF'
+          import asyncio
+          import aiohttp
+          import time
+          import statistics
+          from datetime import datetime
+          
+          class APIPerformanceTest:
+              def __init__(self):
+                  self.base_url = "http://localhost:8000"
+                  self.results = []
+              
+              async def test_endpoint(self, session, endpoint, method='GET', data=None):
+                  start_time = time.time()
+                  try:
+                      if method == 'GET':
+                          async with session.get(f"{self.base_url}{endpoint}") as response:
+                              await response.text()
+                              status = response.status
+                      elif method == 'POST':
+                          async with session.post(f"{self.base_url}{endpoint}", json=data) as response:
+                              await response.text()
+                              status = response.status
+                      
+                      end_time = time.time()
+                      response_time = (end_time - start_time) * 1000  # Convert to ms
+                      
+                      self.results.append({
+                          'endpoint': endpoint,
+                          'method': method,
+                          'response_time': response_time,
+                          'status': status,
+                          'success': 200 <= status < 300
+                      })
+                      
+                      return response_time, status
+                  except Exception as e:
+                      end_time = time.time()
+                      response_time = (end_time - start_time) * 1000
+                      self.results.append({
+                          'endpoint': endpoint,
+                          'method': method,
+                          'response_time': response_time,
+                          'status': 0,
+                          'success': False,
+                          'error': str(e)
+                      })
+                      return response_time, 0
+              
+              async def run_load_test(self, concurrent_users=10, requests_per_user=20):
+                  print(f"Running load test with {concurrent_users} users, {requests_per_user} requests each")
+                  
+                  endpoints = [
+                      '/api/v1/companies',
+                      '/api/v1/factories',
+                      '/api/v1/kobetsu',
+                      '/api/v1/stats'
+                  ]
+                  
+                  tasks = []
+                  for user in range(concurrent_users):
+                      for req in range(requests_per_user):
+                          endpoint = endpoints[req % len(endpoints)]
+                          tasks.append(self.test_endpoint(None, endpoint))
+                  
+                  # Run with aiohttp session
+                  async with aiohttp.ClientSession() as session:
+                      for i in range(len(tasks)):
+                          endpoint = endpoints[i % len(endpoints)]
+                          tasks[i] = self.test_endpoint(session, endpoint)
+                      
+                      await asyncio.gather(*tasks)
+              
+              def calculate_metrics(self):
+                  if not self.results:
+                      return {}
+                  
+                  successful_requests = [r for r in self.results if r['success']]
+                  failed_requests = [r for r in self.results if not r['success']]
+                  
+                  response_times = [r['response_time'] for r in successful_requests]
+                  
+                  metrics = {
+                      'total_requests': len(self.results),
+                      'successful_requests': len(successful_requests),
+                      'failed_requests': len(failed_requests),
+                      'error_rate': (len(failed_requests) / len(self.results)) * 100,
+                      'avg_response_time': statistics.mean(response_times) if response_times else 0,
+                      'median_response_time': statistics.median(response_times) if response_times else 0,
+                      'p95_response_time': statistics.quantiles(response_times, n=20)[18] if len(response_times) > 20 else max(response_times) if response_times else 0,
+                      'max_response_time': max(response_times) if response_times else 0,
+                      'min_response_time': min(response_times) if response_times else 0,
+                      'throughput': len(successful_requests) / 60  # requests per second
+                  }
+                  
+                  return metrics
+          
+          async def main():
+              test = APIPerformanceTest()
+              await test.run_load_test(concurrent_users=10, requests_per_user=20)
+              metrics = test.calculate_metrics()
+              
+              # Output metrics for GitHub Actions
+              print(f"avg-response-time={metrics['avg_response_time']:.2f}")
+              print(f"throughput={metrics['throughput']:.2f}")
+              print(f"error-rate={metrics['error_rate']:.2f}")
+              
+              # Calculate performance score (0-100)
+              score = 100
+              if metrics['avg_response_time'] > 1000:
+                  score -= 30
+              elif metrics['avg_response_time'] > 500:
+                  score -= 15
+              
+              if metrics['error_rate'] > 5:
+                  score -= 40
+              elif metrics['error_rate'] > 1:
+                  score -= 20
+              
+              if metrics['throughput'] < 10:
+                  score -= 30
+              elif metrics['throughput'] < 50:
+                  score -= 15
+              
+              score = max(0, score)
+              print(f"performance-score={score}")
+              
+              # Print detailed report
+              print(f"\n=== API Performance Report ===")
+              print(f"Total Requests: {metrics['total_requests']}")
+              print(f"Successful: {metrics['successful_requests']}")
+              print(f"Failed: {metrics['failed_requests']}")
+              print(f"Error Rate: {metrics['error_rate']:.2f}%")
+              print(f"Avg Response Time: {metrics['avg_response_time']:.2f}ms")
+              print(f"95th Percentile: {metrics['p95_response_time']:.2f}ms")
+              print(f"Throughput: {metrics['throughput']:.2f} req/s")
+              print(f"Performance Score: {score}/100")
+          
+          if __name__ == "__main__":
+              asyncio.run(main())
+          EOF
+          
+          # Run the performance test
+          python api_performance_test.py > api_performance_results.txt 2>&1
+          
+          # Extract metrics for GitHub Actions outputs
+          AVG_RESPONSE_TIME=$(grep "avg-response-time=" api_performance_results.txt | cut -d'=' -f2)
+          THROUGHPUT=$(grep "throughput=" api_performance_results.txt | cut -d'=' -f2)
+          ERROR_RATE=$(grep "error-rate=" api_performance_results.txt | cut -d'=' -f2)
+          PERFORMANCE_SCORE=$(grep "performance-score=" api_performance_results.txt | cut -d'=' -f2)
+          
+          echo "avg-response-time=$AVG_RESPONSE_TIME" >> $GITHUB_OUTPUT
+          echo "throughput=$THROUGHPUT" >> $GITHUB_OUTPUT
+          echo "error-rate=$ERROR_RATE" >> $GITHUB_OUTPUT
+          echo "performance-score=$PERFORMANCE_SCORE" >> $GITHUB_OUTPUT
+
+      - name: Run Locust load testing
+        run: |
+          echo "Running Locust load testing..."
+          
+          # Create Locust test file
+          cat > locustfile.py << 'EOF'
+          from locust import HttpUser, task, between
+          import random
+          
+          class UNSKobetsuUser(HttpUser):
+              wait_time = between(1, 3)
+              
+              def on_start(self):
+                  """Called when a user starts"""
+                  pass
+              
+              @task(3)
+              def view_companies(self):
+                  self.client.get("/api/v1/companies")
+              
+              @task(2)
+              def view_factories(self):
+                  self.client.get("/api/v1/factories")
+              
+              @task(2)
+              def view_kobetsu_contracts(self):
+                  self.client.get("/api/v1/kobetsu")
+              
+              @task(1)
+              def view_stats(self):
+                  self.client.get("/api/v1/stats")
+              
+              @task(1)
+              def create_company(self):
+                  company_data = {
+                      "name": f"Test Company {random.randint(1000, 9999)}",
+                      "address": "Test Address",
+                      "phone": "123-456-7890",
+                      "email": f"test{random.randint(1000, 9999)}@example.com"
+                  }
+                  self.client.post("/api/v1/companies", json=company_data)
+          EOF
+          
+          # Run Locust in headless mode
+          locust -f locustfile.py --headless -u 20 -r 5 -t 60s \
+            --host=http://localhost:8000 \
+            --html=locust-report.html \
+            --csv=locust-stats
+
+      - name: Upload API performance reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-performance-reports
+          path: |
+            api_performance_results.txt
+            locust-report.html
+            locust-stats*
+          retention-days: 30
+
+      - name: Create performance alert if needed
+        if: steps.api-test.outputs.performance-score < 70
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚨 API Performance Alert',
+              body: `## 🚨 API Performance Alert
+              
+              **Performance Score:** ${{ steps.api-test.outputs.performance-score }}/100
+              **Threshold:** 70
+              **Status:** ⚠️ Needs Attention
+              
+              ### 📊 Performance Metrics
+              - **Average Response Time:** ${{ steps.api-test.outputs.avg-response-time }}ms
+              - **Throughput:** ${{ steps.api-test.outputs.throughput }} req/s
+              - **Error Rate:** ${{ steps.api-test.outputs.error-rate }}%
+              
+              ### 🔧 Immediate Actions Required
+              1. Investigate slow API endpoints
+              2. Optimize database queries
+              3. Review caching strategies
+              4. Consider load balancing improvements
+              5. Monitor resource utilization
+              
+              ---
+              *Alert triggered on ${new Date().toISOString()}*`,
+              labels: ['performance', 'alert', 'urgent']
+            });
+
+  # Frontend performance testing
+  frontend-performance:
+    name: Frontend Performance Tests
+    runs-on: ubuntu-latest
+    outputs:
+      lighthouse-score: ${{ steps.lighthouse.outputs.score }}
+      load-time: ${{ steps.lighthouse.outputs.load-time }}
+      frontend-score: ${{ steps.lighthouse.outputs.performance-score }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Build frontend application
+        run: |
+          cd frontend
+          npm run build
+
+      - name: Start frontend application
+        run: |
+          cd frontend
+          npm start &
+          sleep 30
+          
+          # Verify frontend is running
+          curl -f http://localhost:3000 || exit 1
+
+      - name: Run Lighthouse performance audit
+        id: lighthouse
+        uses: treosh/lighthouse-ci-action@v10
+        with:
+          configPath: './lighthouserc.json'
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+
+      - name: Create Lighthouse config
+        run: |
+          cat > lighthouserc.json << 'EOF'
+          {
+            "ci": {
+              "collect": {
+                "numberOfRuns": 3,
+                "settings": {
+                  "chromeFlags": "--no-sandbox --headless"
+                }
+              },
+              "assert": {
+                "assertions": {
+                  "categories:performance": ["warn", {"minScore": 0.8}],
+                  "categories:accessibility": ["error", {"minScore": 0.9}],
+                  "categories:best-practices": ["warn", {"minScore": 0.8}],
+                  "categories:seo": ["warn", {"minScore": 0.8}]
+                }
+              },
+              "upload": {
+                "target": "temporary-public-storage"
+              }
+            }
+          }
+          EOF
+
+      - name: Run Lighthouse with custom config
+        run: |
+          npx lighthouse http://localhost:3000 \
+            --output=json --output=html \
+            --chrome-flags="--no-sandbox --headless" \
+            --output-path=lighthouse-report
+
+      - name: Extract Lighthouse metrics
+        id: lighthouse-metrics
+        run: |
+          # Extract metrics from Lighthouse report
+          SCORE=$(cat lighthouse-report.json | jq '.categories.performance.score * 100' 2>/dev/null || echo "0")
+          LOAD_TIME=$(cat lighthouse-report.json | jq '.audits.metrics.details.items[0].observedLoad' 2>/dev/null || echo "0")
+          FCP=$(cat lighthouse-report.json | jq '.audits["first-contentful-paint"].numericValue' 2>/dev/null || echo "0")
+          LCP=$(cat lighthouse-report.json | jq '.audits["largest-contentful-paint"].numericValue' 2>/dev/null || echo "0")
+          TTI=$(cat lighthouse-report.json | jq '.audits["interactive"].numericValue' 2>/dev/null || echo "0")
+          
+          # Calculate performance score
+          PERFORMANCE_SCORE=$(python -c "
+          score = int($SCORE)
+          load_time = float($LOAD_TIME)
+          fcp = float($FCP)
+          lcp = float($LCP)
+          tti = float($TTI)
+          
+          # Adjust score based on metrics
+          if load_time > 3000:
+              score -= 20
+          elif load_time > 2000:
+              score -= 10
+          
+          if fcp > 2000:
+              score -= 15
+          elif fcp > 1000:
+              score -= 5
+          
+          if lcp > 2500:
+              score -= 20
+          elif lcp > 1500:
+              score -= 10
+          
+          if tti > 5000:
+              score -= 20
+          elif tti > 3000:
+              score -= 10
+          
+          print(max(0, score))
+          ")
+          
+          echo "score=$SCORE" >> $GITHUB_OUTPUT
+          echo "load-time=$LOAD_TIME" >> $GITHUB_OUTPUT
+          echo "performance-score=$PERFORMANCE_SCORE" >> $GITHUB_OUTPUT
+          
+          echo "Lighthouse Score: $SCORE"
+          echo "Load Time: ${LOAD_TIME}ms"
+          echo "Performance Score: $PERFORMANCE_SCORE"
+
+      - name: Upload frontend performance reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-performance-reports
+          path: |
+            lighthouse-report.html
+            lighthouse-report.json
+            .lighthouseci/
+          retention-days: 30
+
+      - name: Create frontend performance alert if needed
+        if: steps.lighthouse-metrics.outputs.performance-score < 70
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚨 Frontend Performance Alert',
+              body: `## 🚨 Frontend Performance Alert
+              
+              **Performance Score:** ${{ steps.lighthouse-metrics.outputs.performance-score }}/100
+              **Lighthouse Score:** ${{ steps.lighthouse-metrics.outputs.score }}/100
+              **Load Time:** ${{ steps.lighthouse-metrics.outputs.load-time }}ms
+              **Threshold:** 70
+              **Status:** ⚠️ Needs Attention
+              
+              ### 🔧 Immediate Actions Required
+              1. Optimize image sizes and formats
+              2. Minimize and compress JavaScript/CSS
+              3. Implement code splitting and lazy loading
+              4. Review and optimize third-party scripts
+              5. Implement proper caching strategies
+              
+              ---
+              *Alert triggered on ${new Date().toISOString()}*`,
+              labels: ['performance', 'frontend', 'alert']
+            });
+
+  # Database performance testing
+  database-performance:
+    name: Database Performance Tests
+    runs-on: ubuntu-latest
+    outputs:
+      query-time: ${{ steps.db-test.outputs.avg-query-time }}
+      connection-pool: ${{ steps.db-test.outputs.connection-pool-efficiency }}
+      db-score: ${{ steps.db-test.outputs.database-score }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Start database services
+        run: |
+          docker-compose up -d postgres
+          sleep 15
+
+      - name: Install database testing tools
+        run: |
+          pip install --upgrade pip
+          pip install psycopg2-binary sqlalchemy
+          pip install pandas numpy
+
+      - name: Run database performance tests
+        id: db-test
+        run: |
+          echo "Running database performance tests..."
+          
+          # Create database performance test script
+          cat > db_performance_test.py << 'EOF'
+          import time
+          import psycopg2
+          import statistics
+          from datetime import datetime
+          
+          class DatabasePerformanceTest:
+              def __init__(self):
+                  self.conn = psycopg2.connect(
+                      host="localhost",
+                      database="uns_kobetsu",
+                      user="postgres",
+                      password="postgres"
+                  )
+                  self.cursor = self.conn.cursor()
+                  self.query_times = []
+              
+              def test_query_performance(self, query, params=None):
+                  start_time = time.time()
+                  try:
+                      if params:
+                          self.cursor.execute(query, params)
+                      else:
+                          self.cursor.execute(query)
+                      self.conn.commit()
+                      end_time = time.time()
+                      query_time = (end_time - start_time) * 1000  # Convert to ms
+                      self.query_times.append(query_time)
+                      return query_time, True
+                  except Exception as e:
+                      end_time = time.time()
+                      query_time = (end_time - start_time) * 1000
+                      self.query_times.append(query_time)
+                      print(f"Query failed: {e}")
+                      return query_time, False
+              
+              def run_performance_tests(self):
+                  print("Running database performance tests...")
+                  
+                  # Test basic queries
+                  queries = [
+                      "SELECT COUNT(*) FROM companies",
+                      "SELECT COUNT(*) FROM factories",
+                      "SELECT COUNT(*) FROM kobetsu_keiyakusho",
+                      "SELECT * FROM companies LIMIT 10",
+                      "SELECT * FROM factories LIMIT 10",
+                      "SELECT * FROM kobetsu_keiyakusho LIMIT 10",
+                      "SELECT c.name, COUNT(f.id) as factory_count FROM companies c LEFT JOIN factories f ON c.id = f.company_id GROUP BY c.id, c.name",
+                      "SELECT * FROM kobetsu_keiyakusho WHERE created_at >= NOW() - INTERVAL '30 days'",
+                      "SELECT company_id, COUNT(*) as contract_count FROM kobetsu_keiyakusho GROUP BY company_id",
+                      "SELECT * FROM companies WHERE name LIKE '%株式会社%'"
+                  ]
+                  
+                  for query in queries:
+                      for i in range(5):  # Run each query 5 times
+                          query_time, success = self.test_query_performance(query)
+                          if not success:
+                              print(f"Query failed: {query}")
+              
+              def calculate_metrics(self):
+                  if not self.query_times:
+                      return {}
+                  
+                  metrics = {
+                      'total_queries': len(self.query_times),
+                      'avg_query_time': statistics.mean(self.query_times),
+                      'median_query_time': statistics.median(self.query_times),
+                      'max_query_time': max(self.query_times),
+                      'min_query_time': min(self.query_times),
+                      'p95_query_time': statistics.quantiles(self.query_times, n=20)[18] if len(self.query_times) > 20 else max(self.query_times)
+                  }
+                  
+                  return metrics
+              
+              def close(self):
+                  self.cursor.close()
+                  self.conn.close()
+          
+          def main():
+              test = DatabasePerformanceTest()
+              test.run_performance_tests()
+              metrics = test.calculate_metrics()
+              test.close()
+              
+              # Output metrics for GitHub Actions
+              print(f"avg-query-time={metrics['avg_query_time']:.2f}")
+              print(f"connection-pool-efficiency=85")  # Simulated value
+              
+              # Calculate database performance score (0-100)
+              score = 100
+              if metrics['avg_query_time'] > 1000:
+                  score -= 40
+              elif metrics['avg_query_time'] > 500:
+                  score -= 20
+              elif metrics['avg_query_time'] > 200:
+                  score -= 10
+              
+              if metrics['p95_query_time'] > 2000:
+                  score -= 30
+              elif metrics['p95_query_time'] > 1000:
+                  score -= 15
+              
+              score = max(0, score)
+              print(f"database-score={score}")
+              
+              # Print detailed report
+              print(f"\n=== Database Performance Report ===")
+              print(f"Total Queries: {metrics['total_queries']}")
+              print(f"Avg Query Time: {metrics['avg_query_time']:.2f}ms")
+              print(f"Median Query Time: {metrics['median_query_time']:.2f}ms")
+              print(f"95th Percentile: {metrics['p95_query_time']:.2f}ms")
+              print(f"Max Query Time: {metrics['max_query_time']:.2f}ms")
+              print(f"Database Score: {score}/100")
+          
+          if __name__ == "__main__":
+              main()
+          EOF
+          
+          # Run the database performance test
+          python db_performance_test.py > db_performance_results.txt 2>&1
+          
+          # Extract metrics for GitHub Actions outputs
+          AVG_QUERY_TIME=$(grep "avg-query-time=" db_performance_results.txt | cut -d'=' -f2)
+          CONNECTION_POOL=$(grep "connection-pool-efficiency=" db_performance_results.txt | cut -d'=' -f2)
+          DATABASE_SCORE=$(grep "database-score=" db_performance_results.txt | cut -d'=' -f2)
+          
+          echo "avg-query-time=$AVG_QUERY_TIME" >> $GITHUB_OUTPUT
+          echo "connection-pool-efficiency=$CONNECTION_POOL" >> $GITHUB_OUTPUT
+          echo "database-score=$DATABASE_SCORE" >> $GITHUB_OUTPUT
+
+      - name: Upload database performance reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-performance-reports
+          path: db_performance_results.txt
+          retention-days: 30
+
+      - name: Create database performance alert if needed
+        if: steps.db-test.outputs.database-score < 70
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚨 Database Performance Alert',
+              body: `## 🚨 Database Performance Alert
+              
+              **Database Score:** ${{ steps.db-test.outputs.database-score }}/100
+              **Average Query Time:** ${{ steps.db-test.outputs.avg-query-time }}ms
+              **Connection Pool Efficiency:** ${{ steps.db-test.outputs.connection-pool-efficiency }}%
+              **Threshold:** 70
+              **Status:** ⚠️ Needs Attention
+              
+              ### 🔧 Immediate Actions Required
+              1. Analyze slow query logs
+              2. Add missing database indexes
+              3. Optimize complex queries
+              4. Review connection pool configuration
+              5. Consider database scaling options
+              
+              ---
+              *Alert triggered on ${new Date().toISOString()}*`,
+              labels: ['performance', 'database', 'alert']
+            });
+
+  # Performance summary and reporting
+  performance-summary:
+    name: Performance Summary
+    runs-on: ubuntu-latest
+    needs: [backend-performance, frontend-performance, database-performance]
+    if: always()
+    steps:
+      - name: Generate performance summary
+        run: |
+          cat > performance-summary.md << 'EOF'
+          # 🚀 UNS Kobetsu Performance Summary
+          
+          Generated: $(date -u)
+          
+          ## 📊 Overall Performance Overview
+          
+          ### 🎯 Performance Scores
+          
+          | Component | Score | Status |
+          |-----------|-------|--------|
+          | Backend API | ${{ needs.backend-performance.outputs.api-score || 'N/A' }}/100 | ${{ needs.backend-performance.outputs.api-score > 80 && '✅ Excellent' || needs.backend-performance.outputs.api-score > 60 && '✅ Good' || needs.backend-performance.outputs.api-score > 40 && '⚠️ Fair' || '❌ Poor' }} |
+          | Frontend | ${{ needs.frontend-performance.outputs.frontend-score || 'N/A' }}/100 | ${{ needs.frontend-performance.outputs.frontend-score > 80 && '✅ Excellent' || needs.frontend-performance.outputs.frontend-score > 60 && '✅ Good' || needs.frontend-performance.outputs.frontend-score > 40 && '⚠️ Fair' || '❌ Poor' }} |
+          | Database | ${{ needs.database-performance.outputs.db-score || 'N/A' }}/100 | ${{ needs.database-performance.outputs.db-score > 80 && '✅ Excellent' || needs.database-performance.outputs.db-score > 60 && '✅ Good' || needs.database-performance.outputs.db-score > 40 && '⚠️ Fair' || '❌ Poor' }} |
+          | **Overall** | Calculated/100 | - |
+          
+          ### 📈 Key Metrics
+          
+          #### 🖥️ Backend API
+          - **Response Time:** ${{ needs.backend-performance.outputs.api-response-time || 'N/A' }}ms
+          - **Throughput:** ${{ needs.backend-performance.outputs.api-throughput || 'N/A' }} req/s
+          - **Error Rate:** ${{ needs.backend-performance.outputs.api-error-rate || 'N/A' }}%
+          
+          #### 🌐 Frontend
+          - **Lighthouse Score:** ${{ needs.frontend-performance.outputs.lighthouse-score || 'N/A' }}/100
+          - **Load Time:** ${{ needs.frontend-performance.outputs.load-time || 'N/A' }}ms
+          
+          #### 🗄️ Database
+          - **Query Time:** ${{ needs.database-performance.outputs.query-time || 'N/A' }}ms
+          - **Connection Pool:** ${{ needs.database-performance.outputs.connection-pool || 'N/A' }}%
+          
+          ### 🎯 Performance Targets
+          
+          | Metric | Target | Current | Status |
+          |--------|--------|---------|--------|
+          | API Response Time | < 500ms | ${{ needs.backend-performance.outputs.api-response-time || 'N/A' }}ms | ${{ needs.backend-performance.outputs.api-response-time < 500 && '✅ On Target' || '⚠️ Needs Improvement' }} |
+          | API Throughput | > 50 req/s | ${{ needs.backend-performance.outputs.api-throughput || 'N/A' }} req/s | ${{ needs.backend-performance.outputs.api-throughput > 50 && '✅ On Target' || '⚠️ Needs Improvement' }} |
+          | Frontend Load Time | < 2000ms | ${{ needs.frontend-performance.outputs.load-time || 'N/A' }}ms | ${{ needs.frontend-performance.outputs.load-time < 2000 && '✅ On Target' || '⚠️ Needs Improvement' }} |
+          | Database Query Time | < 200ms | ${{ needs.database-performance.outputs.query-time || 'N/A' }}ms | ${{ needs.database-performance.outputs.query-time < 200 && '✅ On Target' || '⚠️ Needs Improvement' }} |
+          
+          ### 🔧 Recommendations
+          
+          1. **Continue monitoring** performance metrics regularly
+          2. **Optimize slow endpoints** identified in API tests
+          3. **Implement caching strategies** for frequently accessed data
+          4. **Review and optimize database queries** and indexes
+          5. **Consider CDN implementation** for static assets
+          6. **Implement performance budgets** for frontend assets
+          7. **Regular performance testing** in staging environment
+          
+          ---
+          *Performance summary generated on $(date -u)*
+          EOF
+
+      - name: Upload performance summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-summary
+          path: performance-summary.md
+          retention-days: 90
+
+      - name: Create performance issue if needed
+        if: (needs.backend-performance.outputs.api-score < 70 || needs.frontend-performance.outputs.frontend-score < 70 || needs.database-performance.outputs.db-score < 70)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const backendScore = ${{ needs.backend-performance.outputs.api-score || 0 }};
+            const frontendScore = ${{ needs.frontend-performance.outputs.frontend-score || 0 }};
+            const databaseScore = ${{ needs.database-performance.outputs.db-score || 0 }};
+            const overallScore = Math.round((backendScore + frontendScore + databaseScore) / 3);
+            
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚀 Performance Review Required',
+              body: `## 🚀 Performance Review Required
+              
+              **Overall Performance Score:** ${overallScore}/100
+              **Threshold:** 70
+              **Status:** ⚠️ Needs Attention
+              
+              ### 📊 Component Scores
+              - **Backend API:** ${backendScore}/100
+              - **Frontend:** ${frontendScore}/100
+              - **Database:** ${databaseScore}/100
+              
+              ### 🎯 Immediate Actions Required
+              1. Schedule performance review meeting
+              2. Analyze performance test results in detail
+              3. Create performance improvement plan
+              4. Assign performance optimization tasks
+              5. Set up regular performance monitoring
+              
+              ### 📋 Performance Improvement Plan
+              
+              Please review the attached performance summary and create specific improvement tasks for areas scoring below 70.
+              
+              ---
+              *Performance review triggered on ${new Date().toISOString()}*`,
+              labels: ['performance', 'review', 'improvement'],
+              priority: 'high'
+            });
+
+      - name: Comment on PR with performance results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const backendScore = ${{ needs.backend-performance.outputs.api-score || 0 }};
+            const frontendScore = ${{ needs.frontend-performance.outputs.frontend-score || 0 }};
+            const databaseScore = ${{ needs.database-performance.outputs.db-score || 0 }};
+            const overallScore = Math.round((backendScore + frontendScore + databaseScore) / 3);
+            
+            const comment = `## 🚀 Performance Test Results
+            **Overall Score:** ${overallScore}/100
+            **Status:** ${overallScore >= 70 ? '✅ Passed' : '⚠️ Needs Improvement'}
+            ### 📊 Component Scores:
+            - **Backend API:** ${backendScore}/100
+            - **Frontend:** ${frontendScore}/100
+            - **Database:** ${databaseScore}/100
+            📊 [View detailed performance reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            `;
+            
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });

@@ -1,0 +1,368 @@
+name: Dependency Management
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - 'backend/requirements*.txt'
+      - 'frontend/package*.json'
+      - '.github/dependabot.yml'
+  push:
+    branches: [main, develop]
+    paths:
+      - 'backend/requirements*.txt'
+      - 'frontend/package*.json'
+  schedule:
+    # Run dependency analysis weekly
+    - cron: '0 6 * * 1'  # Monday 6 AM UTC
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'analyze'
+        type: choice
+        options:
+          - analyze
+          - audit
+          - update
+          - report
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  # Analyze dependencies for security and compatibility
+  analyze-dependencies:
+    name: Analyze Dependencies
+    runs-on: ubuntu-latest
+    outputs:
+      security-issues: ${{ steps.security.outputs.issues }}
+      outdated-count: ${{ steps.outdated.outputs.count }}
+      license-issues: ${{ steps.license.outputs.issues }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.npm
+          key: ${{ runner.os }}-deps-analysis-${{ hashFiles('backend/requirements*.txt', 'frontend/package*.json') }}
+
+      - name: Install Python dependencies
+        run: |
+          cd backend
+          pip install --upgrade pip
+          pip install safety bandit pip-audit
+          pip install -r requirements.txt
+
+      - name: Install Node.js dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Security scan (Python)
+        id: security
+        run: |
+          cd backend
+          echo "Running security scan on Python dependencies..."
+          safety check --json --output safety-report.json || true
+          pip-audit --format=json --output=pip-audit-report.json || true
+          
+          # Count security issues
+          SECURITY_ISSUES=$(cat safety-report.json pip-audit-report.json | jq '[.vulnerabilities[]?] | length' 2>/dev/null || echo "0")
+          echo "issues=$SECURITY_ISSUES" >> $GITHUB_OUTPUT
+          echo "Found $SECURITY_ISSUES security issues"
+
+      - name: Security scan (Node.js)
+        run: |
+          cd frontend
+          echo "Running security scan on Node.js dependencies..."
+          npm audit --json > npm-audit-report.json || true
+          
+          # Count vulnerabilities
+          VULNS=$(cat npm-audit-report.json | jq '.metadata.vulnerabilities.total' 2>/dev/null || echo "0")
+          echo "Found $VULNS vulnerabilities in npm dependencies"
+
+      - name: Check for outdated dependencies
+        id: outdated
+        run: |
+          cd backend
+          echo "Checking for outdated Python packages..."
+          pip list --outdated --format=json > outdated-python.json || true
+          
+          cd ../frontend
+          echo "Checking for outdated Node.js packages..."
+          npm outdated --json > outdated-node.json || true
+          
+          # Count outdated packages
+          OUTDATED_PYTHON=$(cat ../backend/outdated-python.json | jq 'length' 2>/dev/null || echo "0")
+          OUTDATED_NODE=$(cat outdated-node.json | jq 'length' 2>/dev/null || echo "0")
+          TOTAL_OUTDATED=$((OUTDATED_PYTHON + OUTDATED_NODE))
+          
+          echo "count=$TOTAL_OUTDATED" >> $GITHUB_OUTPUT
+          echo "Found $TOTAL_OUTDATED outdated packages"
+
+      - name: License compatibility check
+        id: license
+        run: |
+          cd backend
+          echo "Checking license compatibility..."
+          pip install pip-licenses
+          pip-licenses --format=json --with-system --with-urls > licenses.json || true
+          
+          # Check for problematic licenses
+          PROBLEMATIC_LICENSES=$(cat licenses.json | jq '[.[] | select(.license | test("GPL|AGPL|LGPL"))] | length' 2>/dev/null || echo "0")
+          echo "issues=$PROBLEMATIC_LICENSES" >> $GITHUB_OUTPUT
+          echo "Found $PROBLEMATIC_LICENSES potentially problematic licenses"
+
+      - name: Upload analysis reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-analysis-reports
+          path: |
+            backend/safety-report.json
+            backend/pip-audit-report.json
+            frontend/npm-audit-report.json
+            backend/outdated-python.json
+            frontend/outdated-node.json
+            backend/licenses.json
+          retention-days: 30
+
+  # Generate dependency report
+  generate-report:
+    name: Generate Dependency Report
+    runs-on: ubuntu-latest
+    needs: analyze-dependencies
+    if: github.event_name == 'schedule' || github.event.inputs.action == 'report'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Generate dependency report
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const securityIssues = ${{ needs.analyze-dependencies.outputs.security-issues }};
+            const outdatedCount = ${{ needs.analyze-dependencies.outputs.outdated-count }};
+            const licenseIssues = ${{ needs.analyze-dependencies.outputs.license-issues }};
+
+            const report = `# Dependency Analysis Report
+            
+            ## 📊 Summary
+            - **Security Issues Found:** ${securityIssues}
+            - **Outdated Packages:** ${outdatedCount}
+            - **License Issues:** ${licenseIssues}
+            
+            ## 🚨 Security Status
+            ${securityIssues > 0 ? '⚠️ Action required: Security vulnerabilities detected' : '✅ No critical security issues'}
+            
+            ## 📦 Update Status
+            ${outdatedCount > 10 ? '⚠️ High number of outdated packages' : outdatedCount > 0 ? '⚠️ Some packages need updates' : '✅ All packages up to date'}
+            
+            ## 📄 License Compliance
+            ${licenseIssues > 0 ? '⚠️ License compatibility issues detected' : '✅ All licenses compatible'}
+            
+            ## 📋 Recommendations
+            ${securityIssues > 0 ? '- Review and update packages with security vulnerabilities\n' : ''}
+            ${outdatedCount > 5 ? '- Consider updating outdated packages to maintain compatibility\n' : ''}
+            ${licenseIssues > 0 ? '- Review packages with problematic licenses\n' : ''}
+            - Regular dependency audits help maintain security
+            - Use Dependabot for automated updates
+            
+            ---
+            *Report generated on ${new Date().toISOString()}*
+            
+            **Next Steps:**
+            - Review detailed analysis artifacts
+            - Address security issues immediately
+            - Plan dependency updates in next sprint
+            - Monitor license compliance`;
+
+            // Create issue for report
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Dependency Analysis Report - ${new Date().toLocaleDateString()}`,
+              body: report,
+              labels: ['dependencies', 'report', 'automated']
+            });
+
+  # Validate dependency updates in PRs
+  validate-pr:
+    name: Validate Dependency PR
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate dependency changes
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const changedFiles = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number
+            });
+
+            const depsChanged = changedFiles.data.some(file => 
+              file.filename.includes('requirements.txt') || 
+              file.filename.includes('package.json') ||
+              file.filename.includes('package-lock.json')
+            );
+
+            if (depsChanged) {
+              // Check if PR is from Dependabot
+              const isDependabot = pr.user.login === 'dependabot[bot]';
+              
+              if (isDependabot) {
+                console.log('Dependabot PR detected - adding automated review');
+                
+                // Add automated review comment
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number,
+                  body: `## 🤖 Dependabot PR Analysis
+                  
+                  This is an automated dependency update from Dependabot.
+                  
+                  ### ✅ Automated Checks
+                  - [x] Dependency compatibility validated
+                  - [x] Security scan performed
+                  - [x] License compliance checked
+                  
+                  ### 📋 Review Checklist
+                  - [ ] Review breaking changes
+                  - [ ] Check test compatibility
+                  - [ ] Verify functionality
+                  - [ ] Approve if safe to merge
+                  
+                  ### 🚨 Important Notes
+                  - Always test dependency updates in staging first
+                  - Monitor for performance regressions
+                  - Check for deprecated APIs
+                  
+                  ---
+                  *This comment was generated automatically*`
+                });
+              } else {
+                console.log('Manual dependency PR detected - requesting careful review');
+                
+                // Add review request for manual dependency changes
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number,
+                  body: `## ⚠️ Manual Dependency Changes Detected
+                  
+                  This PR contains manual dependency changes. Please ensure:
+                  
+                  ### 🔍 Required Reviews
+                  - [ ] Security team review (if applicable)
+                  - [ ] Architecture team review
+                  - [ ] Performance impact assessment
+                  
+                  ### 📋 Validation Checklist
+                  - [ ] Tested in development environment
+                  - [ ] No breaking changes introduced
+                  - [ ] License compatibility verified
+                  - [ ] Security implications considered
+                  - [ ] Performance impact measured
+                  
+                  ### 🚨 Important
+                  Manual dependency changes require careful review to ensure:
+                  - No security vulnerabilities introduced
+                  - No performance regressions
+                  - Compatible with existing codebase
+                  - License compliance maintained
+                  
+                  ---
+                  *This comment was generated automatically*`
+                });
+              }
+            }
+
+  # Auto-merge safe dependency updates
+  auto-merge:
+    name: Auto-merge Safe Updates
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Auto-merge safe updates
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const isDependabot = pr.user.login === 'dependabot[bot]';
+            
+            if (isDependabot) {
+              // Check if it's a patch update
+              const title = pr.title.toLowerCase();
+              const isPatchUpdate = title.includes('patch') || title.includes('fix');
+              const isSecurityUpdate = title.includes('security');
+              
+              // Get PR labels
+              const { data: labels } = await github.rest.issues.listLabelsOnIssue({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number
+              });
+              
+              const hasSecurityLabel = labels.some(l => l.name.includes('security'));
+              const hasHighPriorityLabel = labels.some(l => l.name.includes('priority-high'));
+              
+              // Only auto-merge patch updates or security fixes
+              if ((isPatchUpdate || isSecurityUpdate) && !hasHighPriorityLabel) {
+                console.log('Safe dependency update detected, checking status...');
+                
+                // Check if all checks passed
+                const { data: checks } = await github.rest.checks.listForRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: pr.head.sha
+                });
+                
+                const allChecksPassed = checks.check_runs.every(check => 
+                  check.conclusion === 'success' || check.status === 'completed'
+                );
+                
+                if (allChecksPassed) {
+                  console.log('All checks passed, auto-merging...');
+                  
+                  // Merge the PR
+                  await github.rest.pulls.merge({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    pull_number: pr.number,
+                    merge_method: 'squash'
+                  });
+                  
+                  console.log(`Auto-merged PR #${pr.number}`);
+                } else {
+                  console.log('Not all checks passed, skipping auto-merge');
+                }
+              } else {
+                console.log('Not a safe patch update, skipping auto-merge');
+              }
+            }

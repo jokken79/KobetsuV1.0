@@ -1,0 +1,562 @@
+name: Release Notes Generation
+
+on:
+  push:
+    tags:
+      - 'v*'
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to generate notes for (leave empty for latest)'
+        required: false
+        type: string
+      format:
+        description: 'Output format for release notes'
+        required: true
+        default: 'markdown'
+        type: choice
+        options:
+          - markdown
+          - html
+          - json
+      include-commits:
+        description: 'Include commit list in release notes'
+        required: true
+        default: true
+        type: boolean
+      compare-to:
+        description: 'Compare to previous version'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # Generate comprehensive release notes
+  generate-release-notes:
+    name: Generate Release Notes
+    runs-on: ubuntu-latest
+    outputs:
+      release-notes-file: ${{ steps.generate.outputs.file }}
+      release-notes-content: ${{ steps.generate.outputs.content }}
+      version: ${{ steps.version.outputs.version }}
+      previous-version: ${{ steps.version.outputs.previous }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Get version information
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${{ github.ref_name }}"
+            VERSION="${VERSION#refs/tags/v/}"
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          
+          # Get previous version
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+          PREVIOUS_VERSION="${PREVIOUS_TAG#refs/tags/v/}"
+          echo "previous-version=$PREVIOUS_VERSION" >> $GITHUB_OUTPUT
+          
+          echo "Current version: $VERSION"
+          echo "Previous version: $PREVIOUS_VERSION"
+
+      - name: Get commit history
+        id: commits
+        run: |
+          if [ -n "${{ github.event.inputs.compare-to }}" ]; then
+            COMPARE_TO="${{ github.event.inputs.compare-to }}"
+          else
+            COMPARE_TO="${{ steps.version.outputs.previous-version }}"
+          fi
+          
+          if [ -n "$COMPARE_TO" ]; then
+            echo "Getting commits since tag: $COMPARE_TO"
+            COMMITS=$(git log --oneline --pretty=format:"%h|%s|%an|%ad|%s" $COMPARE_TO..${{ steps.version.outputs.version }})
+          else
+            echo "Getting last 50 commits"
+            COMMITS=$(git log --oneline --pretty=format:"%h|%s|%an|%ad|%s" -50)
+          fi
+          
+          echo "$COMMITS" > commits.txt
+          
+          # Count commits by type
+          FEATURE_COMMITS=$(echo "$COMMITS" | grep -E "(feat|feature)" | wc -l)
+          BUG_COMMITS=$(echo "$COMMITS" | grep -E "(fix|bugfix)" | wc -l)
+          DOCS_COMMITS=$(echo "$COMMITS" | grep -E "(docs|doc)" | wc -l)
+          PERF_COMMITS=$(echo "$COMMITS" | grep -E "(perf|performance)" | wc -l)
+          SECURITY_COMMITS=$(echo "$COMMITS" | grep -E "(security|sec)" | wc -l)
+          REFACTOR_COMMITS=$(echo "$COMMITS" | grep -E "(refactor|refact)" | wc -l)
+          TEST_COMMITS=$(echo "$COMMITS" | grep -E "(test|testing)" | wc -l)
+          DEPS_COMMITS=$(echo "$COMMITS" | grep -E "(deps|dependencies)" | wc -l)
+          
+          echo "feature-count=$FEATURE_COMMITS" >> $GITHUB_OUTPUT
+          echo "bug-count=$BUG_COMMITS" >> $GITHUB_OUTPUT
+          echo "docs-count=$DOCS_COMMITS" >> $GITHUB_OUTPUT
+          echo "perf-count=$PERF_COMMITS" >> $GITHUB_OUTPUT
+          echo "security-count=$SECURITY_COMMITS" >> $GITHUB_OUTPUT
+          echo "refactor-count=$REFACTOR_COMMITS" >> $GITHUB_OUTPUT
+          echo "test-count=$TEST_COMMITS" >> $GITHUB_OUTPUT
+          echo "deps-count=$DEPS_COMMITS" >> $GITHUB_OUTPUT
+
+      - name: Generate release notes content
+        id: generate
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          PREVIOUS_VERSION="${{ steps.version.outputs.previous-version }}"
+          FORMAT="${{ github.event.inputs.format }}"
+          INCLUDE_COMMITS="${{ github.event.inputs.include-commits }}"
+          
+          # Generate filename
+          FILENAME="RELEASE_NOTES_${VERSION//./_}.${FORMAT}"
+          echo "filename=$FILENAME" >> $GITHUB_OUTPUT
+          
+          if [ "$FORMAT" = "markdown" ]; then
+            # Generate Markdown release notes
+            cat > "$FILENAME" << 'EOF'
+          # 🚀 Release $VERSION
+          
+          **Published on:** $(date -u '+%Y-%m-%d')
+          
+          ## 📋 Download
+          
+          ### 📦 Installation
+          \`\`\`bash
+          git clone https://github.com/uns-kikaku/UNS-Kobetsu-Integrated.git
+          cd UNS-Kobetsu-Integrated
+          git checkout $VERSION
+          \`\`\`
+          
+          ### 🐳 Docker
+          \`\`\`bash
+          docker pull uns-kikaku/uns-kobetsu-integrated:$VERSION
+          docker compose up -d
+          \`\`\`
+          
+          ## 📚 Documentation
+          
+          - [API Documentation](https://uns-kikaku.github.io/UNS-Kobetsu-Integrated/api/)
+          - [User Guide](https://uns-kikaku.github.io/UNS-Kobetsu-Integrated/guides/)
+          - [Development Guide](https://uns-kikaku.github.io/UNS-Kobetsu-Integrated/development/)
+          
+          EOF
+          elif [ "$FORMAT" = "html" ]; then
+            # Generate HTML release notes
+            cat > "$FILENAME" << 'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>UNS Kobetsu Integrated - Release $VERSION</title>
+              <style>
+                  body { 
+                      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+                      line-height: 1.6; 
+                      max-width: 1200px; 
+                      margin: 0 auto; 
+                      padding: 20px; 
+                      color: #333; 
+                  }
+                  .header { 
+                      text-align: center; 
+                      border-bottom: 2px solid #e1e4e8; 
+                      padding-bottom: 20px; 
+                      margin-bottom: 30px; 
+                  }
+                  .release-info { 
+                      background: #f8f9fa; 
+                      padding: 20px; 
+                      border-radius: 8px; 
+                      margin-bottom: 20px; 
+                  }
+                  .stats { 
+                      display: grid; 
+                      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+                      gap: 20px; 
+                      margin-bottom: 20px; 
+                  }
+                  .stat-card { 
+                      background: white; 
+                      padding: 15px; 
+                      border-radius: 6px; 
+                      border: 1px solid #e1e4e8; 
+                      box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+                  }
+                  .commits { 
+                      max-height: 400px; 
+                      overflow-y: auto; 
+                  }
+                  .commit-item { 
+                      padding: 10px; 
+                      border-bottom: 1px solid #f0f0f0; 
+                  }
+                  .commit-hash { 
+                      font-family: monospace; 
+                      color: #666; 
+                      font-size: 0.9em; 
+                  }
+                  .commit-author { 
+                      font-weight: bold; 
+                      color: #0969da; 
+                  }
+                  .commit-message { 
+                      margin-bottom: 5px; 
+                      color: #555; 
+                  }
+                  .download-section { 
+                      background: #e8f5e8; 
+                      padding: 20px; 
+                      border-radius: 8px; 
+                      margin-top: 20px; 
+                  }
+                  .download-btn { 
+                      display: inline-block; 
+                      background: #28a745; 
+                      color: white; 
+                      padding: 10px 20px; 
+                      border-radius: 6px; 
+                      text-decoration: none; 
+                      font-weight: bold; 
+                  }
+              </style>
+          </head>
+          <body>
+              <div class="header">
+                  <h1>🚀 UNS Kobetsu Integrated</h1>
+                  <h2>Release $VERSION</h2>
+                  <p><strong>Published on:</strong> $(date -u '+%Y-%m-%d')</p>
+              </div>
+              
+              <div class="stats">
+                  <div class="stat-card">
+                      <h3>📋 Commits</h3>
+                      <p><strong>Total:</strong> ${{ steps.commits.outputs.total-count }}</p>
+                  </div>
+                  <div class="stat-card">
+                      <h3>✨ Features</h3>
+                      <p><strong>New:</strong> ${{ steps.commits.outputs.feature-count }}</p>
+                  </div>
+                  <div class="stat-card">
+                      <h3>🐛 Bug Fixes</h3>
+                      <p><strong>Fixed:</strong> ${{ steps.commits.outputs.bug-count }}</p>
+                  </div>
+                  <div class="stat-card">
+                      <h3>📚 Documentation</h3>
+                      <p><strong>Updated:</strong> ${{ steps.commits.outputs.docs-count }}</p>
+                  </div>
+                  <div class="stat-card">
+                      <h3>⚡ Performance</h3>
+                      <p><strong>Improvements:</strong> ${{ steps.commits.outputs.perf-count }}</p>
+                  </div>
+              </div>
+              
+              <div class="commits">
+                  <h3>📝 Recent Changes</h3>
+          EOF
+          elif [ "$FORMAT" = "json" ]; then
+            # Generate JSON release notes
+            cat > "$FILENAME" << 'EOF'
+          {
+            "version": "$VERSION",
+            "previous_version": "$PREVIOUS_VERSION",
+            "published_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "statistics": {
+              "total_commits": ${{ steps.commits.outputs.total-count }},
+              "features": ${{ steps.commits.outputs.feature-count }},
+              "bug_fixes": ${{ steps.commits.outputs.bug-count }},
+              "documentation": ${{ steps.commits.outputs.docs-count }},
+              "performance": ${{ steps.commits.outputs.perf-count }},
+              "security": ${{ steps.commits.outputs.security-count }},
+              "refactoring": ${{ steps.commits.outputs.refactor-count }},
+              "testing": ${{ steps.commits.outputs.test-count }},
+              "dependencies": ${{ steps.commits.outputs.deps-count }}
+            },
+            "download": {
+              "git": "git clone https://github.com/uns-kikaku/UNS-Kobetsu-Integrated.git && cd UNS-Kobetsu-Integrated && git checkout $VERSION",
+              "docker": "docker pull uns-kikaku/uns-kobetsu-integrated:$VERSION && docker compose up -d"
+            },
+            "documentation": {
+              "api": "https://uns-kikaku.github.io/UNS-Kobetsu-Integrated/api/",
+              "user_guide": "https://uns-kikaku.github.io/UNS-Kobetsu-Integrated/guides/",
+              "development": "https://uns-kikaku.github.io/UNS-Kobetsu-Integrated/development/"
+            }
+          }
+          EOF
+          fi
+          
+          if [ "$INCLUDE_COMMITS" = "true" ]; then
+            # Add commit list to release notes
+            if [ "$FORMAT" = "markdown" ]; then
+              echo "" >> "$FILENAME"
+              echo "## 📝 Commit History" >> "$FILENAME"
+              echo "" >> "$FILENAME"
+              echo "| Commit | Author | Message | Type |" >> "$FILENAME"
+              echo "|-------|--------|--------|------|" >> "$FILENAME"
+              while IFS='|' read -r hash author message; do
+                TYPE="other"
+                if echo "$message" | grep -qi "feat\|feature"; then TYPE="✨ Feature"
+                elif echo "$message" | grep -qi "fix\|bugfix"; then TYPE="🐛 Bug Fix"
+                elif echo "$message" | grep -qi "docs\|doc"; then TYPE="📚 Documentation"
+                elif echo "$message" | grep -qi "perf\|performance"; then TYPE="⚡ Performance"
+                elif echo "$message" | grep -qi "security\|sec"; then TYPE="🔒 Security"
+                elif echo "$message" | grep -qi "refactor\|refact"; then TYPE="🔧 Refactor"
+                elif echo "$message" | grep -qi "test\|testing"; then TYPE="🧪 Testing"
+                elif echo "$message" | grep -qi "deps\|dependencies"; then TYPE="📦 Dependencies"
+                fi
+                echo "| [\`${hash:0:7}\`](https://github.com/uns-kikaku/UNS-Kobetsu-Integrated/commit/${hash}) | ${author} | ${message:0:50} | $TYPE |" >> "$FILENAME"
+              done < commits.txt
+            elif [ "$FORMAT" = "html" ]; then
+              echo "<div class='commits'><h3>📝 Commit History</h3>" >> "$FILENAME"
+              echo "<table>" >> "$FILENAME"
+              echo "<tr><th>Commit</th><th>Author</th><th>Message</th><th>Type</th></tr>" >> "$FILENAME"
+              while IFS='|' read -r hash author message; do
+                TYPE="other"
+                TYPE_CLASS=""
+                if echo "$message" | grep -qi "feat\|feature"; then 
+                  TYPE="✨ Feature"
+                  TYPE_CLASS="feature"
+                elif echo "$message" | grep -qi "fix\|bugfix"; then 
+                  TYPE="🐛 Bug Fix"
+                  TYPE_CLASS="bugfix"
+                elif echo "$message" | grep -qi "docs\|doc"; then 
+                  TYPE="📚 Documentation"
+                  TYPE_CLASS="documentation"
+                elif echo "$message" | grep -qi "perf\|performance"; then 
+                  TYPE="⚡ Performance"
+                  TYPE_CLASS="performance"
+                elif echo "$message" | grep -qi "security\|sec"; then 
+                  TYPE="🔒 Security"
+                  TYPE_CLASS="security"
+                elif echo "$message" | grep -qi "refactor\|refact"; then 
+                  TYPE="🔧 Refactor"
+                  TYPE_CLASS="refactor"
+                elif echo "$message" | grep -qi "test\|testing"; then 
+                  TYPE="🧪 Testing"
+                  TYPE_CLASS="testing"
+                elif echo "$message" | grep -qi "deps\|dependencies"; then 
+                  TYPE="📦 Dependencies"
+                  TYPE_CLASS="dependencies"
+                fi
+                echo "<tr class='commit-item ${TYPE_CLASS}'>" >> "$FILENAME"
+                echo "<td><span class='commit-hash'>${hash:0:7}</span></td>" >> "$FILENAME"
+                echo "<td><span class='commit-author'>${author}</span></td>" >> "$FILENAME"
+                echo "<td><span class='commit-message'>${message:0:50}</span></td>" >> "$FILENAME"
+                echo "<td>$TYPE</td>" >> "$FILENAME"
+                echo "</tr>" >> "$FILENAME"
+              done < commits.txt
+              echo "</table></div>" >> "$FILENAME"
+            fi
+          fi
+
+      - name: Upload release notes
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes-${{ steps.version.outputs.version }}
+          path: ${{ steps.generate.outputs.filename }}
+          retention-days: 90
+
+      - name: Create or update release notes issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = '${{ steps.version.outputs.version }}';
+            const filename = '${{ steps.generate.outputs.filename }}';
+            const previousVersion = '${{ steps.version.outputs.previous-version }}';
+            
+            // Look for existing release notes issue
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['release-notes', 'automated'],
+              state: 'open'
+            });
+            
+            const existingIssue = issues.find(issue => 
+              issue.title.includes(version) || issue.title.includes('Release Notes')
+            );
+            
+            const releaseNotesUrl = `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+            
+            if (existingIssue) {
+              // Update existing issue
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIssue.number,
+                body: `## 🚀 Release Notes Updated - ${version}
+                
+                **Release Notes:** [${filename}](${releaseNotesUrl})
+                
+                **Previous Version:** ${previousVersion || 'N/A'}
+                
+                ---
+                *Updated on ${new Date().toISOString()}*`
+              });
+            } else {
+              // Create new issue
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `📝 Release Notes - ${version}`,
+                body: `## 🚀 Release Notes - ${version}
+                
+                **Release Notes:** [${filename}](${releaseNotesUrl})
+                
+                **Previous Version:** ${previousVersion || 'N/A'}
+                
+                ### 📊 Statistics
+                - **Total Commits:** ${{ steps.commits.outputs.total-count }}
+                - **Features:** ${{ steps.commits.outputs.feature-count }}
+                - **Bug Fixes:** ${{ steps.commits.outputs.bug-count }}
+                - **Documentation:** ${{ steps.commits.outputs.docs-count }}
+                - **Performance:** ${{ steps.commits.outputs.perf-count }}
+                - **Security:** ${{ steps.commits.outputs.security-count }}
+                
+                ### 📋 Download Instructions
+                See the [Installation Guide](https://uns-kikaku.github.io/UNS-Kobetsu-Integrated/guides/installation) for detailed setup instructions.
+                
+                ---
+                *Generated on ${new Date().toISOString()}*`,
+                labels: ['release-notes', 'automated']
+              });
+            }
+
+  # Update GitHub Pages with release notes
+  update-docs:
+    name: Update Documentation
+    runs-on: ubuntu-latest
+    needs: generate-release-notes
+    if: github.event_name == 'release'
+    steps:
+      - name: Download release notes
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes-${{ needs.generate-release-notes.outputs.version }}
+          path: ./
+
+      - name: Update GitHub Pages
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // This would update GitHub Pages with the latest release notes
+            // Implementation depends on your GitHub Pages setup
+            console.log('Release notes generated for version: ${{ needs.generate-release-notes.outputs.version }}');
+
+  # Generate changelog
+  generate-changelog:
+    name: Generate Changelog
+    runs-on: ubuntu-latest
+    needs: generate-release-notes
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate CHANGELOG.md
+        run: |
+          VERSION="${{ needs.generate-release-notes.outputs.version }}"
+          PREVIOUS_VERSION="${{ needs.generate-release-notes.outputs.previous-version }}"
+          
+          cat > CHANGELOG.md << 'EOF'
+          # Changelog
+          
+          ## [${VERSION}] - $(date -u '+%Y-%m-%d')
+          
+          ### 🚀 Features
+          $(git log --oneline --pretty=format:"- %s" "${PREVIOUS_VERSION}..${VERSION}" | grep -E "feat|feature" | sed 's/^- / /')
+          
+          ### 🐛 Bug Fixes
+          $(git log --oneline --pretty=format:"- %s" "${PREVIOUS_VERSION}..${VERSION}" | grep -E "fix|bugfix" | sed 's/^- / /')
+          
+          ### 📚 Documentation
+          $(git log --oneline --pretty=format:"- %s" "${PREVIOUS_VERSION}..${VERSION}" | grep -E "docs|doc" | sed 's/^- / /')
+          
+          ### ⚡ Performance
+          $(git log --oneline --pretty=format:"- %s" "${PREVIOUS_VERSION}..${VERSION}" | grep -E "perf|performance" | sed 's/^- / /')
+          
+          ### 🔒 Security
+          $(git log --oneline --pretty=format:"- %s" "${PREVIOUS_VERSION}..${VERSION}" | grep -E "security|sec" | sed 's/^- / /')
+          
+          ### 🔧 Refactoring
+          $(git log --oneline --pretty=format:"- %s" "${PREVIOUS_VERSION}..${VERSION}" | grep -E "refactor|refact" | sed 's/^- / /')
+          
+          ### 📦 Dependencies
+          $(git log --oneline --pretty=format:"- %s" "${PREVIOUS_VERSION}..${VERSION}" | grep -E "deps|dependencies" | sed 's/^- / /')
+          
+          ---
+          *Full commit history available [here](https://github.com/uns-kikaku/UNS-Kobetsu-Integrated/commits/${VERSION})*
+          EOF
+
+      - name: Commit CHANGELOG.md
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add CHANGELOG.md
+          git diff --staged --quiet || git commit -m "docs: Update CHANGELOG.md for ${VERSION} [skip ci]"
+          git push
+
+  # Create GitHub release
+  create-github-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: generate-release-notes
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download release notes
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes-${{ needs.generate-release-notes.outputs.version }}
+          path: ./
+
+      - name: Create GitHub Release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = '${{ needs.generate-release-notes.outputs.version }}';
+            const filename = '${{ steps.generate.outputs.filename }}';
+            
+            // Read release notes content
+            const fs = require('fs');
+            let releaseNotes = '';
+            try {
+              releaseNotes = fs.readFileSync(filename, 'utf8');
+            } catch (error) {
+              console.log('Could not read release notes file');
+              return;
+            }
+            
+            // Create GitHub Release
+            await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: version,
+              name: `Release ${version}`,
+              body: releaseNotes,
+              draft: false,
+              prerelease: version.includes('-') || version.includes('alpha') || version.includes('beta') || version.includes('rc'),
+              generate_release_notes: false
+            });
+            
+            console.log(`Created release ${version}`);

@@ -1,0 +1,181 @@
+name: Technical Debt
+description: Track technical debt items that need to be addressed
+title: "[TECH-DEBT] "
+labels: ["technical-debt", "maintenance", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for documenting technical debt! This helps us maintain code quality and system health.
+
+  - type: dropdown
+    id: debt-type
+    attributes:
+      label: Type of Technical Debt
+      description: What type of technical debt is this?
+      options:
+        - Code Quality (poor naming, complexity, etc.)
+        - Architecture (design issues, coupling)
+        - Performance (slow code, inefficient algorithms)
+        - Security (vulnerabilities, best practices)
+        - Testing (insufficient test coverage)
+        - Documentation (missing or outdated docs)
+        - Dependencies (outdated packages, version conflicts)
+        - Infrastructure (configuration, deployment)
+        - Monitoring (missing logs, metrics)
+        - Refactoring (code that needs restructuring)
+      multiple: false
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: How severe is this technical debt?
+      options:
+        - Critical (immediate attention required)
+        - High (should be addressed soon)
+        - Medium (address in next planning cycle)
+        - Low (can be deferred)
+      multiple: false
+    validations:
+      required: true
+
+  - type: dropdown
+    id: effort
+    attributes:
+      label: Effort to Fix
+      description: How much effort is required to address this?
+      options:
+        - Trivial (1-2 hours)
+        - Small (half day)
+        - Medium (1-2 days)
+        - Large (3-5 days)
+        - Very Large (1+ weeks)
+      multiple: false
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Clear description of the technical debt issue.
+      placeholder: Describe the technical debt in detail...
+    validations:
+      required: true
+
+  - type: textarea
+    id: location
+    attributes:
+      label: Location
+      description: Where is this technical debt located?
+      placeholder: |
+        Files/Modules affected:
+        - backend/app/services/example.py
+        - frontend/components/Example.tsx
+        - database/migrations/
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: What is the impact of this technical debt?
+      placeholder: |
+        - Makes code harder to maintain
+        - Causes performance issues
+        - Increases bug risk
+        - Blocks new feature development
+        - Affects team productivity
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Solution
+      description: How should this technical debt be addressed?
+      placeholder: Describe the approach to fix this technical debt...
+
+  - type: dropdown
+    id: urgency
+    attributes:
+      label: Urgency
+      description: How urgently does this need to be addressed?
+      options:
+        - Immediate (blocking current work)
+        - Soon (within current sprint)
+        - Next Sprint (plan for next iteration)
+        - Future (can be scheduled later)
+        - When Time Allows (low priority)
+      multiple: false
+    validations:
+      required: true
+
+  - type: dropdown
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Does this depend on or block other work?
+      options:
+        - Blocks other features
+        - Depends on other tasks
+        - Independent
+        - Part of larger refactoring
+      multiple: true
+
+  - type: textarea
+    id: testing-impact
+    attributes:
+      label: Testing Impact
+      description: What testing is needed when addressing this technical debt?
+      placeholder: |
+        - Unit tests need updating
+        - Integration tests affected
+        - E2E tests need modification
+        - New tests required
+        - No testing impact
+
+  - type: dropdown
+    id: risk-assessment
+    attributes:
+      label: Risk Assessment
+      description: What are the risks of not addressing this?
+      options:
+        - High risk of production issues
+        - Medium risk of bugs
+        - Low risk but affects maintainability
+        - Minimal risk
+        - Security vulnerability risk
+      multiple: false
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional Notes
+      description: Any other relevant information.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Technical Debt Checklist
+      options:
+        - label: I have documented the specific impact
+          required: true
+        - label: I have estimated the effort to fix
+          required: true
+        - label: I have identified affected components
+          required: true
+        - label: I have assessed the risks
+          required: true
+        - label: I understand this will be prioritized in tech debt planning
+          required: true
