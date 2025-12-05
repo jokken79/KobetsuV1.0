@@ -312,6 +312,12 @@ class FactoryBase(BaseModel):
 
     notes: Optional[str] = None
 
+    # シフト継承設定
+    use_company_shifts: bool = Field(
+        default=True,
+        description="True: 企業のシフトを継承 / False: 工場独自シフトを使用"
+    )
+
     @validator('fiscal_year_end_month')
     def validate_month(cls, v):
         if not 1 <= v <= 12:

@@ -171,6 +171,16 @@ class Factory(Base):
     agreement_explainer = Column(String(255))  # 説明者
 
     # ========================================
+    # シフト継承設定 (Shift Inheritance)
+    # ========================================
+    use_company_shifts = Column(
+        Boolean,
+        default=True,
+        nullable=False,
+        comment="True: 企業のシフトを継承 / False: 工場独自シフトを使用"
+    )
+
+    # ========================================
     # メタデータ
     # ========================================
     is_active = Column(Boolean, default=True)

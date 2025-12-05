@@ -12,6 +12,7 @@ from sqlalchemy import func, distinct
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.factory import Factory, FactoryLine, FactoryBreak, FactoryShift
+from app.models.company import Company, CompanyShift
 from app.models.employee import Employee
 from app.schemas.factory import (
     FactoryCreate, FactoryUpdate, FactoryResponse, FactoryListItem,
@@ -441,13 +442,60 @@ async def get_factory_shifts(
     db: Session = Depends(get_db),
     # current_user: dict = Depends(get_current_user)  # TODO: Re-enable auth in production
 ):
-    """Get all shifts for a factory."""
-    query = db.query(FactoryShift).filter(FactoryShift.factory_id == factory_id)
+    """
+    Get all shifts for a factory.
 
-    if not include_inactive:
-        query = query.filter(FactoryShift.is_active == True)
+    If factory.use_company_shifts=True, returns inherited company shifts.
+    Otherwise, returns factory-specific shifts.
+    """
+    # Get factory
+    factory = db.query(Factory).filter(Factory.id == factory_id).first()
+    if not factory:
+        raise HTTPException(status_code=404, detail="Factory not found")
 
-    return query.order_by(FactoryShift.display_order, FactoryShift.shift_name).all()
+    # Check if factory uses company shifts
+    if factory.use_company_shifts:
+        # Find company by name and return its shifts
+        company = db.query(Company).filter(Company.name == factory.company_name).first()
+
+        if company:
+            # Return company shifts (inherited)
+            query = db.query(CompanyShift).filter(CompanyShift.company_id == company.company_id)
+
+            if not include_inactive:
+                query = query.filter(CompanyShift.is_active == True)
+
+            company_shifts = query.order_by(CompanyShift.display_order, CompanyShift.shift_name).all()
+
+            # Convert CompanyShift to FactoryShiftResponse format
+            return [
+                FactoryShiftResponse(
+                    id=shift.id,
+                    factory_id=factory_id,  # Use factory_id for compatibility
+                    shift_name=shift.shift_name,
+                    shift_start=shift.shift_start,
+                    shift_end=shift.shift_end,
+                    shift_premium=shift.shift_premium,
+                    shift_premium_type=shift.shift_premium_type,
+                    description=shift.description,
+                    display_order=shift.display_order,
+                    is_active=shift.is_active,
+                    created_at=shift.created_at,
+                    updated_at=shift.updated_at
+                )
+                for shift in company_shifts
+            ]
+        else:
+            # Company not found, return empty list
+            return []
+    else:
+        # Return factory-specific shifts
+        query = db.query(FactoryShift).filter(FactoryShift.factory_id == factory_id)
+
+        if not include_inactive:
+            query = query.filter(FactoryShift.is_active == True)
+
+        return query.order_by(FactoryShift.display_order, FactoryShift.shift_name).all()
 
 
 @router.post("/{factory_id}/shifts", response_model=FactoryShiftResponse, status_code=status.HTTP_201_CREATED)

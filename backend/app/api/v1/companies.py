@@ -3,6 +3,7 @@ Company and Plant API Router
 
 Provides endpoints for companies and plants synced from Base Madre.
 These match the Base Madre schema for consistency.
+Includes company-level shift management.
 """
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -11,9 +12,14 @@ from sqlalchemy import func
 
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.models.company import Company
+from app.models.company import Company, CompanyShift
 from app.models.plant import Plant
 from app.models.jigyosho import Jigyosho
+from app.schemas.company import (
+    CompanyShiftCreate,
+    CompanyShiftUpdate,
+    CompanyShiftResponse
+)
 
 
 router = APIRouter(redirect_slashes=False)
@@ -226,3 +232,126 @@ async def get_plant_options(
         }
         for p in plants
     ]
+
+
+# ========================================
+# COMPANY SHIFTS ENDPOINTS
+# ========================================
+
+@router.get("/companies/{company_id}/shifts", response_model=List[CompanyShiftResponse])
+async def get_company_shifts(
+    company_id: int,
+    include_inactive: bool = Query(False, description="Include inactive shifts"),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get all shifts for a specific company.
+
+    All factories belonging to this company inherit these shifts by default
+    (unless they have use_company_shifts=False).
+    """
+    # Verify company exists
+    company = db.query(Company).filter(Company.company_id == company_id).first()
+    if not company:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Company with ID {company_id} not found"
+        )
+
+    # Query shifts
+    query = db.query(CompanyShift).filter(CompanyShift.company_id == company_id)
+
+    if not include_inactive:
+        query = query.filter(CompanyShift.is_active == True)
+
+    shifts = query.order_by(CompanyShift.display_order, CompanyShift.shift_name).all()
+    return shifts
+
+
+@router.post("/companies/{company_id}/shifts", response_model=CompanyShiftResponse, status_code=status.HTTP_201_CREATED)
+async def create_company_shift(
+    company_id: int,
+    shift_data: CompanyShiftCreate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Create a new shift for a company.
+
+    This shift will be inherited by all factories that belong to this company
+    and have use_company_shifts=True.
+    """
+    # Verify company exists
+    company = db.query(Company).filter(Company.company_id == company_id).first()
+    if not company:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Company with ID {company_id} not found"
+        )
+
+    # Create shift
+    company_shift = CompanyShift(
+        company_id=company_id,
+        **shift_data.model_dump()
+    )
+    db.add(company_shift)
+    db.commit()
+    db.refresh(company_shift)
+
+    return company_shift
+
+
+@router.put("/companies/shifts/{shift_id}", response_model=CompanyShiftResponse)
+async def update_company_shift(
+    shift_id: int,
+    shift_data: CompanyShiftUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Update a company shift.
+
+    Changes will automatically apply to all factories that inherit this company's shifts.
+    """
+    shift = db.query(CompanyShift).filter(CompanyShift.id == shift_id).first()
+    if not shift:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Company shift with ID {shift_id} not found"
+        )
+
+    # Update only provided fields
+    update_data = shift_data.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(shift, field, value)
+
+    db.commit()
+    db.refresh(shift)
+
+    return shift
+
+
+@router.delete("/companies/shifts/{shift_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_company_shift(
+    shift_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Delete a company shift (soft delete by setting is_active=False).
+
+    This will affect all factories that inherit this company's shifts.
+    """
+    shift = db.query(CompanyShift).filter(CompanyShift.id == shift_id).first()
+    if not shift:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Company shift with ID {shift_id} not found"
+        )
+
+    # Soft delete
+    shift.is_active = False
+    db.commit()
+
+    return None
