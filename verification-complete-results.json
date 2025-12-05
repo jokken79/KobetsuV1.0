@@ -1,0 +1,38 @@
+{
+  "homepage": {
+    "title": "UNS Kobetsu",
+    "quickActionsCount": 30,
+    "hasBuildingIcon": true,
+    "url": "http://localhost:3010/",
+    "status": "loaded"
+  },
+  "companies": {
+    "title": "UNS Kobetsu Keiyakusho",
+    "count": 0,
+    "hasIndigoTheme": true,
+    "url": "http://localhost:3010/login",
+    "status": "loaded"
+  },
+  "factories": {
+    "title": "UNS Kobetsu",
+    "treeVisible": true,
+    "hasIndigoTheme": true,
+    "syncButtonVisible": true,
+    "url": "http://localhost:3010/factories",
+    "status": "loaded"
+  },
+  "login": {},
+  "errors": [
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ]
+}
