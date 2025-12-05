@@ -1741,19 +1741,53 @@ export default function EditFactoryPage() {
                     {shifts.length}件登録
                   </span>
                   <span className="ml-2 text-gray-400">昼勤・夜勤・第3シフトなど（手当付き）</span>
+                  {factory.use_company_shifts && (
+                    <span className="ml-2 inline-flex items-center px-2 py-0.5 bg-purple-100 rounded-full text-xs font-semibold text-purple-700">
+                      🏢 企業シフト継承中
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setIsCreatingShift(true)}
-              className="px-4 py-2 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg transition-colors font-medium flex items-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-              </svg>
-              新規シフト追加
-            </button>
+            <div className="flex items-center gap-3">
+              {/* Toggle for company shifts inheritance */}
+              <div className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2 bg-white">
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={factory.use_company_shifts}
+                    onChange={async (e) => {
+                      if (confirm(e.target.checked
+                        ? '企業の共通シフトを継承しますか？（工場独自のシフト設定は無効になります）'
+                        : '工場独自のシフトを使用しますか？（企業シフトの継承を解除します）')) {
+                        try {
+                          await updateMutation.mutateAsync({ use_company_shifts: e.target.checked })
+                        } catch (err) {
+                          alert('シフト設定の変更に失敗しました')
+                        }
+                      }
+                    }}
+                    className="sr-only peer"
+                  />
+                  <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                  <span className="ms-2 text-sm font-medium text-gray-700 whitespace-nowrap">
+                    {factory.use_company_shifts ? '企業継承' : '独自設定'}
+                  </span>
+                </label>
+              </div>
+              {!factory.use_company_shifts && (
+                <button
+                  type="button"
+                  onClick={() => setIsCreatingShift(true)}
+                  className="px-4 py-2 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg transition-colors font-medium flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  </svg>
+                  新規シフト追加
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1765,28 +1799,39 @@ export default function EditFactoryPage() {
               </svg>
             </div>
             <h3 className="text-lg font-bold text-gray-900 mb-2">勤務シフトが登録されていません</h3>
-            <p className="text-gray-500 mb-6">昼勤・夜勤・第3シフトなどを追加しましょう（手当設定可能）</p>
-            <button
-              type="button"
-              onClick={() => setIsCreatingShift(true)}
-              className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold transition-colors"
-            >
-              最初のシフトを追加
-            </button>
+            <p className="text-gray-500 mb-6">
+              {factory.use_company_shifts
+                ? '企業の共通シフトが設定されていません。企業管理画面で追加してください。'
+                : '昼勤・夜勤・第3シフトなどを追加しましょう（手当設定可能）'}
+            </p>
+            {!factory.use_company_shifts && (
+              <button
+                type="button"
+                onClick={() => setIsCreatingShift(true)}
+                className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold transition-colors"
+              >
+                最初のシフトを追加
+              </button>
+            )}
           </div>
         ) : (
           <div className="divide-y divide-gray-100">
             {shifts.map((shift) => (
               <div key={shift.id} className="px-8 py-5 hover:bg-gray-50/50 transition-all duration-200 flex items-center justify-between">
                 <div className="flex items-center gap-4 flex-1">
-                  <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
-                    <span className="text-indigo-600 font-bold text-base">
+                  <div className={`w-12 h-12 ${factory.use_company_shifts ? 'bg-purple-100' : 'bg-indigo-100'} rounded-lg flex items-center justify-center`}>
+                    <span className={`${factory.use_company_shifts ? 'text-purple-600' : 'text-indigo-600'} font-bold text-base`}>
                       {shift.display_order || '#'}
                     </span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-1.5">
                       <span className="font-bold text-gray-900 text-base">{shift.shift_name}</span>
+                      {factory.use_company_shifts && (
+                        <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-purple-100 text-purple-700">
+                          🏢 企業共通
+                        </span>
+                      )}
                       <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${shift.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                         {shift.is_active ? '有効' : '無効'}
                       </span>
@@ -1815,23 +1860,30 @@ export default function EditFactoryPage() {
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setEditingShift(shift)}
-                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-white hover:shadow-sm transition-all duration-200"
-                  >
-                    編集
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteShift(shift.id, shift.shift_name)}
-                    disabled={deleteShiftMutation.isPending}
-                    className="px-3 py-1.5 text-sm border border-red-300 rounded-lg text-red-600 font-medium hover:bg-red-50 transition-all duration-200 disabled:opacity-50"
-                  >
-                    削除
-                  </button>
-                </div>
+                {!factory.use_company_shifts && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditingShift(shift)}
+                      className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-white hover:shadow-sm transition-all duration-200"
+                    >
+                      編集
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteShift(shift.id, shift.shift_name)}
+                      disabled={deleteShiftMutation.isPending}
+                      className="px-3 py-1.5 text-sm border border-red-300 rounded-lg text-red-600 font-medium hover:bg-red-50 transition-all duration-200 disabled:opacity-50"
+                    >
+                      削除
+                    </button>
+                  </div>
+                )}
+                {factory.use_company_shifts && (
+                  <div className="text-sm text-purple-600 font-medium">
+                    企業管理画面で編集
+                  </div>
+                )}
               </div>
             ))}
           </div>
