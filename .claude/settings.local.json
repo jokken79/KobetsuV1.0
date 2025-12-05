@@ -3,7 +3,9 @@
     "allow": [
       "Bash(git add:*)",
       "Bash(git rm:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nfeat: Multiple break times per factory + employee sync + UI improvements\n\n## Factory Break Times (休憩時間)\n- Added factory_breaks table for multiple breaks per factory\n- Support for 昼勤, 夜勤, 残業時 and custom break configurations\n- Each break has: name, start/end time, duration, display order\n- Full CRUD API endpoints for factory breaks\n- Frontend UI for viewing/editing breaks on /factories page\n- Break edit modal on /factories/[id] detail page\n\n## Employee-Factory Sync\n- Added EMPLOYEE_TO_FACTORY_MAPPING for 派遣先 → (company, plant)\n- Sync employees to factories from Excel DBGenzaiX table\n- API endpoints: /employees/sync-to-factories, /employees/sync-from-db\n- Maps employees to factories and production lines\n\n## Frontend Improvements\n- Added \"退社者も表示\" checkbox to filter active/all employees\n- Break times section with amber styling on factories page\n- Improved factory detail page with break management\n\n## Files Changed\n- backend/app/models/factory.py - Added FactoryBreak model\n- backend/app/schemas/factory.py - Added break schemas\n- backend/app/api/v1/factories.py - Break CRUD endpoints\n- backend/app/api/v1/imports.py - Sync endpoints\n- backend/app/services/import_service.py - Sync logic + mapping\n- frontend/app/factories/page.tsx - Break display + employee filter\n- frontend/app/factories/[id]/page.tsx - Break edit modal\n- frontend/lib/api.ts - Break API functions\n- frontend/types/index.ts - Break types\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": []
