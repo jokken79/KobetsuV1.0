@@ -6,13 +6,17 @@ import { SkeletonCard } from '@/components/common/Skeleton'
 import { useToastActions } from '@/components/common/ToastContext'
 import { FactoryTree } from '@/components/factory/FactoryTree'
 import { LineCard } from '@/components/factory/LineCard'
+import { ShiftEditModal } from '@/components/factory/ShiftEditModal'
+import { BreakEditModal } from '@/components/factory/BreakEditModal'
 import { useDeleteFactory, useUpdateFactory } from '@/hooks/useFactories'
 import { employeeApi, factoryApi, importApi } from '@/lib/api'
 import { formatBreakTimeForDisplay } from '@/lib/formatBreakTime'
 import type {
   EmployeeResponse,
   FactoryLineResponse,
-  FactoryUpdate
+  FactoryUpdate,
+  FactoryShiftResponse,
+  FactoryBreakResponse
 } from '@/types'
 import { useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
@@ -26,6 +30,12 @@ export default function FactoriesPage() {
   const [expandedLines, setExpandedLines] = useState<Set<number>>(new Set())
   const [isSyncing, setIsSyncing] = useState(false)
   const [showAllEmployees, setShowAllEmployees] = useState(false) // false = active only (default)
+
+  // Modal states
+  const [showShiftModal, setShowShiftModal] = useState(false)
+  const [editingShift, setEditingShift] = useState<FactoryShiftResponse | null>(null)
+  const [showBreakModal, setShowBreakModal] = useState(false)
+  const [editingBreak, setEditingBreak] = useState<FactoryBreakResponse | null>(null)
 
   const toast = useToastActions()
   const { confirmDelete } = useConfirmActions()
@@ -341,6 +351,54 @@ export default function FactoriesPage() {
     }
   }
 
+  // Shift modal handlers
+  const handleSaveShift = async (shiftData: any) => {
+    if (!selectedFactoryId) return
+
+    try {
+      if (editingShift) {
+        // Update existing shift
+        await factoryApi.updateShift(editingShift.id, shiftData)
+        toast.success('シフトを更新しました')
+      } else {
+        // Create new shift
+        await factoryApi.createShift(selectedFactoryId, shiftData)
+        toast.success('シフトを追加しました')
+      }
+
+      // Refresh factory details
+      window.location.reload()
+    } catch (error: any) {
+      console.error('Failed to save shift:', error)
+      toast.error(`シフトの保存に失敗しました: ${error.response?.data?.detail || error.message}`)
+      throw error // Re-throw so modal can handle loading state
+    }
+  }
+
+  // Break modal handlers
+  const handleSaveBreak = async (breakData: any) => {
+    if (!selectedFactoryId) return
+
+    try {
+      if (editingBreak) {
+        // Update existing break
+        await factoryApi.updateBreak(editingBreak.id, breakData)
+        toast.success('休憩を更新しました')
+      } else {
+        // Create new break
+        await factoryApi.createBreak(selectedFactoryId, breakData)
+        toast.success('休憩を追加しました')
+      }
+
+      // Refresh factory details
+      window.location.reload()
+    } catch (error: any) {
+      console.error('Failed to save break:', error)
+      toast.error(`休憩の保存に失敗しました: ${error.response?.data?.detail || error.message}`)
+      throw error // Re-throw so modal can handle loading state
+    }
+  }
+
   // Helper to format break time for display
   const getBreakTimeSummary = (breakTimeDescription?: string, breakMinutes?: number) => {
     if (!breakTimeDescription || breakTimeDescription.trim() === '') {
@@ -394,22 +452,22 @@ export default function FactoriesPage() {
       {/* Breadcrumbs */}
       <Breadcrumbs items={[
         { label: 'ダッシュボード', href: '/' },
-        { label: '派遣先企業・工場管理', href: '/factories' }
+        { label: '派遣先工場・ライン管理', href: '/factories' }
       ]} />
 
       {/* Sync Button - Prominent at top */}
-      <div className="bg-white border-b border-gray-200 px-4 py-3 mb-0">
+      <div className="bg-white border-b border-indigo-100 px-4 py-3 mb-0 shadow-sm">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600">社員台帳から社員と工場をリンク</span>
+            <span className="text-sm text-indigo-700 font-medium">社員台帳から社員と工場をリンク</span>
           </div>
           <button
             onClick={handleSyncEmployeesToFactories}
             disabled={isSyncing}
-            className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
+            className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all shadow-sm ${
               isSyncing
                 ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-green-600 hover:bg-green-700 text-white'
+                : 'bg-green-600 hover:bg-green-700 text-white hover:shadow-md'
             }`}
           >
             {isSyncing ? (
@@ -472,15 +530,15 @@ export default function FactoriesPage() {
           {selectedFactoryId && factoryDetail ? (
             <div className="p-6">
               {/* Factory Header */}
-              <div className="border-b pb-4 mb-6">
+              <div className="border-b border-indigo-100 pb-4 mb-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">🏢</span>
                     <div>
-                      <h2 className="text-2xl font-bold text-gray-900">
+                      <h2 className="text-2xl font-bold text-indigo-900">
                         {factoryDetail.company_name} - {factoryDetail.plant_name}
                       </h2>
-                      <p className="text-sm text-gray-600 mt-1">
+                      <p className="text-sm text-indigo-600 mt-1">
                         工場ID: {factoryDetail.factory_id} |
                         {factoryDetail.lines?.length || 0}ライン |
                         {employees.length}名配属
@@ -491,7 +549,7 @@ export default function FactoriesPage() {
                     <div className="flex gap-2">
                       <button
                         onClick={handleEditFactory}
-                        className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        className="px-4 py-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                       >
                         編集
                       </button>
@@ -509,10 +567,10 @@ export default function FactoriesPage() {
               {/* Factory Information Cards */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
                 {/* Company Info Card */}
-                <div className="border border-gray-200 rounded-lg p-4">
+                <div className="border border-indigo-200 rounded-lg p-4 bg-white shadow-sm hover:shadow-md transition-shadow">
                   <div className="flex items-center gap-2 mb-3">
                     <span className="text-lg">📋</span>
-                    <h3 className="font-semibold">会社情報</h3>
+                    <h3 className="font-semibold text-indigo-900">会社情報</h3>
                   </div>
                   <div className="space-y-2">
                     <div>
@@ -558,10 +616,10 @@ export default function FactoriesPage() {
                 </div>
 
                 {/* Factory Info Card */}
-                <div className="border border-gray-200 rounded-lg p-4">
+                <div className="border border-indigo-200 rounded-lg p-4 bg-white shadow-sm hover:shadow-md transition-shadow">
                   <div className="flex items-center gap-2 mb-3">
                     <span className="text-lg">📍</span>
-                    <h3 className="font-semibold">工場情報</h3>
+                    <h3 className="font-semibold text-indigo-900">工場情報</h3>
                   </div>
                   <div className="space-y-2">
                     <div>
@@ -607,10 +665,10 @@ export default function FactoriesPage() {
                 </div>
 
                 {/* Responsible Persons */}
-                <div className="border border-gray-200 rounded-lg p-4">
+                <div className="border border-indigo-200 rounded-lg p-4 bg-white shadow-sm hover:shadow-md transition-shadow">
                   <div className="flex items-center gap-2 mb-3">
                     <span className="text-lg">👤</span>
-                    <h3 className="font-semibold">派遣先責任者</h3>
+                    <h3 className="font-semibold text-indigo-900">派遣先責任者</h3>
                   </div>
                   <div className="space-y-2">
                     <div>
@@ -656,10 +714,10 @@ export default function FactoriesPage() {
                 </div>
 
                 {/* Complaint Contact */}
-                <div className="border border-gray-200 rounded-lg p-4">
+                <div className="border border-indigo-200 rounded-lg p-4 bg-white shadow-sm hover:shadow-md transition-shadow">
                   <div className="flex items-center gap-2 mb-3">
                     <span className="text-lg">📞</span>
-                    <h3 className="font-semibold">派遣先苦情担当</h3>
+                    <h3 className="font-semibold text-indigo-900">派遣先苦情担当</h3>
                   </div>
                   <div className="space-y-2">
                     <div>
@@ -708,10 +766,10 @@ export default function FactoriesPage() {
               {/* Additional Information Grid */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
                 {/* Contract & Schedule Card */}
-                <div className="border border-gray-200 rounded-lg p-4">
+                <div className="border border-indigo-200 rounded-lg p-4 bg-white shadow-sm hover:shadow-md transition-shadow">
                   <div className="flex items-center gap-2 mb-3">
                     <span className="text-lg">📅</span>
-                    <h3 className="font-semibold">契約・スケジュール情報</h3>
+                    <h3 className="font-semibold text-indigo-900">契約・スケジュール情報</h3>
                   </div>
                   <div className="space-y-2">
                     <div>
@@ -857,10 +915,10 @@ export default function FactoriesPage() {
                 </div>
 
                 {/* Payment & Agreement Card */}
-                <div className="border border-gray-200 rounded-lg p-4">
+                <div className="border border-indigo-200 rounded-lg p-4 bg-white shadow-sm hover:shadow-md transition-shadow">
                   <div className="flex items-center gap-2 mb-3">
                     <span className="text-lg">💰</span>
-                    <h3 className="font-semibold">支払・協定情報</h3>
+                    <h3 className="font-semibold text-indigo-900">支払・協定情報</h3>
                   </div>
                   <div className="space-y-2">
                     <div>
@@ -1021,7 +1079,10 @@ export default function FactoriesPage() {
                     </span>
                   </div>
                   <button
-                    onClick={() => router.push(`/factories/${selectedFactoryId}`)}
+                    onClick={() => {
+                      setEditingBreak(null)
+                      setShowBreakModal(true)
+                    }}
                     className="text-sm px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium shadow-sm"
                   >
                     ✏️ 編集・追加
@@ -1068,7 +1129,10 @@ export default function FactoriesPage() {
                     <p className="text-base mb-2">⚠️ 休憩時間が設定されていません</p>
                     <p className="text-sm text-amber-600 mb-3">昼勤・夜勤・残業時の休憩を設定できます</p>
                     <button
-                      onClick={() => router.push(`/factories/${selectedFactoryId}`)}
+                      onClick={() => {
+                        setEditingBreak(null)
+                        setShowBreakModal(true)
+                      }}
                       className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors font-medium"
                     >
                       今すぐ設定する →
@@ -1088,7 +1152,10 @@ export default function FactoriesPage() {
                     </span>
                   </div>
                   <button
-                    onClick={() => router.push(`/factories/${selectedFactoryId}`)}
+                    onClick={() => {
+                      setEditingShift(null)
+                      setShowShiftModal(true)
+                    }}
                     className="text-sm px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium shadow-sm"
                   >
                     ✏️ 編集・追加
@@ -1140,7 +1207,10 @@ export default function FactoriesPage() {
                     <p className="text-base mb-2">⚠️ 勤務シフトが設定されていません</p>
                     <p className="text-sm text-indigo-600 mb-3">昼勤・夜勤・第3シフト等を設定できます（手当付き）</p>
                     <button
-                      onClick={() => router.push(`/factories/${selectedFactoryId}`)}
+                      onClick={() => {
+                        setEditingShift(null)
+                        setShowShiftModal(true)
+                      }}
                       className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors font-medium"
                     >
                       今すぐ設定する →
@@ -1161,7 +1231,7 @@ export default function FactoriesPage() {
                   </button>
                   <button
                     onClick={handleSaveFactory}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                    className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm hover:shadow-md flex items-center gap-2"
                     disabled={updateFactoryMutation.isPending}
                   >
                     {updateFactoryMutation.isPending ? (
@@ -1203,7 +1273,7 @@ export default function FactoriesPage() {
                     {!isEditingFactory && (
                       <button
                         onClick={() => router.push(`/factories/${selectedFactoryId}/lines/create`)}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm hover:shadow-md"
                       >
                         + ライン追加
                       </button>
@@ -1241,7 +1311,7 @@ export default function FactoriesPage() {
                         <p className="text-gray-600">生産ラインが登録されていません</p>
                         <button
                           onClick={() => router.push(`/factories/${selectedFactoryId}/lines/create`)}
-                          className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                          className="mt-4 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm hover:shadow-md"
                         >
                           最初のラインを追加
                         </button>
@@ -1315,6 +1385,31 @@ export default function FactoriesPage() {
           )}
         </div>
       </div>
+
+      {/* Modals */}
+      {showShiftModal && selectedFactoryId && (
+        <ShiftEditModal
+          shift={editingShift}
+          factoryId={selectedFactoryId}
+          onSave={handleSaveShift}
+          onClose={() => {
+            setShowShiftModal(false)
+            setEditingShift(null)
+          }}
+        />
+      )}
+
+      {showBreakModal && selectedFactoryId && (
+        <BreakEditModal
+          breakItem={editingBreak}
+          factoryId={selectedFactoryId}
+          onSave={handleSaveBreak}
+          onClose={() => {
+            setShowBreakModal(false)
+            setEditingBreak(null)
+          }}
+        />
+      )}
     </>
   )
 }

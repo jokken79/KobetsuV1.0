@@ -694,6 +694,49 @@ export const factoryApi = {
   },
 }
 
+// Company API
+export const companyApi = {
+  // Get list of companies
+  getList: async (params?: {
+    skip?: number
+    limit?: number
+    search?: string
+    is_active?: boolean
+  }): Promise<any[]> => {
+    const response = await apiClient.get('/companies', { params })
+    return response.data
+  },
+
+  // Get single company
+  getById: async (companyId: number): Promise<any> => {
+    const response = await apiClient.get(`/companies/${companyId}`)
+    return response.data
+  },
+
+  // Get company shifts
+  getShifts: async (companyId: number): Promise<CompanyShiftResponse[]> => {
+    const response = await apiClient.get<CompanyShiftResponse[]>(`/companies/${companyId}/shifts`)
+    return response.data
+  },
+
+  // Create company shift
+  createShift: async (companyId: number, data: CompanyShiftCreate): Promise<CompanyShiftResponse> => {
+    const response = await apiClient.post<CompanyShiftResponse>(`/companies/${companyId}/shifts`, data)
+    return response.data
+  },
+
+  // Update company shift
+  updateShift: async (shiftId: number, data: CompanyShiftUpdate): Promise<CompanyShiftResponse> => {
+    const response = await apiClient.put<CompanyShiftResponse>(`/companies/shifts/${shiftId}`, data)
+    return response.data
+  },
+
+  // Delete company shift
+  deleteShift: async (shiftId: number): Promise<void> => {
+    await apiClient.delete(`/companies/shifts/${shiftId}`)
+  },
+}
+
 // Employee API
 export const employeeApi = {
   // List employees

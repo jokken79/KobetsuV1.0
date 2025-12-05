@@ -85,9 +85,15 @@ const navigation = [
   },
   {
     name: '派遣先企業',
+    href: '/companies',
+    icon: Icons.Building,
+    description: '企業一覧',
+  },
+  {
+    name: '派遣先工場',
     href: '/factories',
     icon: Icons.Building,
-    description: '企業・工場一覧',
+    description: '工場・ライン管理',
   },
   {
     name: '従業員配属',

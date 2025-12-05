@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import axios from 'axios'
+import { companyApi } from '@/lib/api'
 import type { CompanyShiftResponse, CompanyShiftCreate, CompanyShiftUpdate } from '@/types'
 
 interface Company {
@@ -25,22 +25,33 @@ export default function CompaniesPage() {
   const [showShiftModal, setShowShiftModal] = useState(false)
   const [editingShift, setEditingShift] = useState<CompanyShiftResponse | null>(null)
 
-  // Fetch companies
+  // Check authentication on mount
   useEffect(() => {
+    const token = localStorage.getItem('access_token')
+    if (!token) {
+      router.push('/login')
+      return
+    }
     fetchCompanies()
   }, [])
 
   const fetchCompanies = async () => {
     try {
       setLoading(true)
-      const token = localStorage.getItem('access_token')
-      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/companies`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      setCompanies(response.data)
+      const data = await companyApi.getList({ is_active: true })
+      setCompanies(data)
       setError(null)
     } catch (err: any) {
       console.error('Error fetching companies:', err)
+
+      // If 401, redirect to login
+      if (err.response?.status === 401) {
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('refresh_token')
+        router.push('/login')
+        return
+      }
+
       setError('企業の読み込みに失敗しました')
     } finally {
       setLoading(false)
@@ -50,15 +61,10 @@ export default function CompaniesPage() {
   // Fetch shifts for a company
   const fetchCompanyShifts = async (companyId: number) => {
     try {
-      const token = localStorage.getItem('access_token')
-      const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/companies/${companyId}/shifts`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      )
-
+      const shifts = await companyApi.getShifts(companyId)
       // Update company shifts in state
       setCompanies(prev => prev.map(c =>
-        c.company_id === companyId ? { ...c, shifts: response.data } : c
+        c.company_id === companyId ? { ...c, shifts } : c
       ))
     } catch (err) {
       console.error('Error fetching shifts:', err)
@@ -90,23 +96,12 @@ export default function CompaniesPage() {
     if (!selectedCompany) return
 
     try {
-      const token = localStorage.getItem('access_token')
-      const headers = { Authorization: `Bearer ${token}` }
-
       if (editingShift) {
         // Update existing shift
-        await axios.put(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/companies/shifts/${editingShift.id}`,
-          shiftData,
-          { headers }
-        )
+        await companyApi.updateShift(editingShift.id, shiftData as CompanyShiftUpdate)
       } else {
         // Create new shift
-        await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/companies/${selectedCompany.company_id}/shifts`,
-          shiftData,
-          { headers }
-        )
+        await companyApi.createShift(selectedCompany.company_id, shiftData as CompanyShiftCreate)
       }
 
       // Refresh shifts
@@ -124,12 +119,7 @@ export default function CompaniesPage() {
     if (!confirm('このシフトを削除してもよろしいですか？')) return
 
     try {
-      const token = localStorage.getItem('access_token')
-      await axios.delete(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/companies/shifts/${shiftId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      )
-
+      await companyApi.deleteShift(shiftId)
       // Refresh shifts
       await fetchCompanyShifts(selectedCompany.company_id)
     } catch (err: any) {
@@ -153,7 +143,7 @@ export default function CompaniesPage() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">企業管理</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">派遣先企業管理</h1>
           <p className="text-gray-600">企業ごとの共通シフト設定 - 全工場に継承されます</p>
         </div>
 
