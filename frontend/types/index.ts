@@ -276,6 +276,41 @@ export interface FactoryLineResponse {
   updated_at?: string
 }
 
+// Factory Break types
+export interface FactoryBreakCreate {
+  break_name: string
+  break_start?: string
+  break_end?: string
+  break_minutes?: number
+  description?: string
+  display_order?: number
+  is_active?: boolean
+}
+
+export interface FactoryBreakUpdate {
+  break_name?: string
+  break_start?: string
+  break_end?: string
+  break_minutes?: number
+  description?: string
+  display_order?: number
+  is_active?: boolean
+}
+
+export interface FactoryBreakResponse {
+  id: number
+  factory_id: number
+  break_name: string
+  break_start?: string
+  break_end?: string
+  break_minutes?: number
+  description?: string
+  display_order: number
+  is_active: boolean
+  created_at: string
+  updated_at?: string
+}
+
 export interface FactoryCreate {
   factory_id?: string
   company_name: string
@@ -424,6 +459,7 @@ export interface FactoryResponse {
   created_at: string
   updated_at?: string
   lines: FactoryLineResponse[]
+  breaks: FactoryBreakResponse[]
   employees_count: number
 }
 

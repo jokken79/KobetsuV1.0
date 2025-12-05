@@ -118,25 +118,48 @@ backend/app/
 │   ├── kobetsu.py    # Main contract endpoints
 │   ├── factories.py  # Factory/client company management
 │   ├── employees.py  # Employee management
+│   ├── companies.py  # Company management
 │   ├── imports.py    # Data import functionality
-│   └── documents.py  # Document generation
+│   ├── documents.py  # Document generation (Excel/PDF)
+│   ├── settings.py   # Application settings
+│   ├── stats.py      # Statistics endpoints
+│   ├── health.py     # Health check endpoints
+│   └── endpoints/sync.py  # Data synchronization
 ├── models/           # SQLAlchemy ORM models
 │   ├── kobetsu_keiyakusho.py  # Main contract model (16 legal fields)
 │   ├── factory.py              # Factory model
 │   ├── employee.py             # Employee model
+│   ├── company.py              # Company model
+│   ├── plant.py                # Plant/facility model
+│   ├── jigyosho.py             # Business office model
+│   ├── user.py                 # User authentication model
 │   └── dispatch_assignment.py  # Assignment linking
 ├── schemas/          # Pydantic schemas (request/response validation)
-│   ├── kobetsu_keiyakusho.py
-│   └── factory.py
+│   ├── kobetsu.py / kobetsu_keiyakusho.py
+│   ├── factory.py
+│   ├── employee.py
+│   └── settings.py
 ├── services/         # Business logic layer
-│   ├── kobetsu_service.py         # Contract CRUD + validation
-│   ├── kobetsu_pdf_service.py     # PDF/DOCX generation
-│   ├── contract_logic_service.py  # Legal compliance checks
-│   └── import_service.py          # Excel/CSV imports
+│   ├── kobetsu_service.py              # Contract CRUD + validation
+│   ├── kobetsu_pdf_service.py          # PDF/DOCX generation
+│   ├── kobetsu_excel_generator.py      # Excel contract generation
+│   ├── contract_logic_service.py       # Legal compliance checks
+│   ├── contract_date_service.py        # Date calculations
+│   ├── contract_renewal_service.py     # Contract renewal logic
+│   ├── import_service.py               # Excel/CSV imports
+│   ├── sync_service.py                 # Data sync with external sources
+│   ├── excel_document_service.py       # Excel document handling
+│   ├── dispatch_documents_service.py   # Dispatch document generation
+│   ├── treatment_document_service.py   # Treatment info documents
+│   ├── employment_status_report_service.py  # Status reports
+│   └── template_manager.py             # Document template management
 ├── core/            # Core utilities
 │   ├── config.py    # Settings from environment
 │   ├── database.py  # DB session management
-│   └── security.py  # JWT, password hashing
+│   ├── security.py  # JWT, password hashing
+│   └── rate_limit.py # API rate limiting
+├── utils/
+│   └── pdf_converter.py  # PDF conversion utilities
 └── main.py         # FastAPI app initialization
 ```
 
@@ -153,21 +176,34 @@ Next.js 15 App Router with component-based structure:
 ```
 frontend/
 ├── app/                    # Next.js App Router
-│   ├── layout.tsx         # Root layout
+│   ├── layout.tsx         # Root layout with providers
 │   ├── page.tsx           # Home/dashboard
+│   ├── providers.tsx      # React Query + global providers
+│   ├── login/             # Authentication
 │   ├── kobetsu/           # Contract management routes
 │   │   ├── page.tsx       # List all contracts
 │   │   ├── create/        # Create new contract
 │   │   └── [id]/          # View/edit contract (dynamic route)
-│   ├── assign/            # Employee assignment
-│   ├── import/            # Data import
-│   └── providers.tsx      # React Query provider
+│   │       └── edit/      # Edit existing contract
+│   ├── factories/         # Factory management
+│   │   ├── page.tsx       # Factory list
+│   │   ├── create/        # Create factory
+│   │   ├── manage/        # Factory management dashboard
+│   │   ├── [id]/          # View factory details
+│   │   └── lines/[id]/edit/  # Edit production lines
+│   ├── employees/         # Employee management
+│   │   ├── page.tsx       # Employee list
+│   │   ├── create/        # Create employee
+│   │   └── [id]/          # View/edit employee
+│   ├── assign/            # Employee assignment to contracts
+│   ├── import/            # Data import from Excel/CSV
+│   ├── sync/              # Data synchronization
+│   ├── settings/          # Application settings
+│   ├── error.tsx          # Error boundary
+│   └── not-found.tsx      # 404 page
 ├── components/
 │   ├── common/            # Shared components (Header, etc.)
 │   ├── kobetsu/           # Contract-specific components
-│   │   ├── KobetsuForm.tsx    # Contract form
-│   │   ├── KobetsuTable.tsx   # Contract list table
-│   │   └── KobetsuStats.tsx   # Statistics dashboard
 │   └── factory/           # Factory/company components
 ├── lib/
 │   └── api.ts             # Axios client with JWT interceptors
@@ -449,3 +485,13 @@ The web system should eventually generate all documents from the Excel system:
 - 契約書 (Employment contract)
 
 See [EXCEL_TO_WEB_MIGRATION.md](EXCEL_TO_WEB_MIGRATION.md) for detailed migration strategy.
+
+## Agent Orchestration System
+
+This project uses a multi-agent system defined in `.claude/agents/` for specialized task delegation:
+
+**Core Agents:** planner, architect, critic, explorer, memory, coder, tester, stuck
+**Quality Agents:** security, debugger, reviewer, performance
+**Domain Agents:** frontend, backend, database, data-sync, devops, api-designer, migrator, docs-writer
+
+The orchestrator workflow is defined in `.claude/CLAUDE.md`. For complex tasks, agents are invoked via the Task tool with appropriate prompts referencing the agent definitions in `.claude/agents/`.

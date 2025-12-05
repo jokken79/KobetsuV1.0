@@ -7,7 +7,7 @@ import { useToastActions } from '@/components/common/ToastContext'
 import { FactoryTree } from '@/components/factory/FactoryTree'
 import { LineCard } from '@/components/factory/LineCard'
 import { useDeleteFactory, useUpdateFactory } from '@/hooks/useFactories'
-import { employeeApi, factoryApi } from '@/lib/api'
+import { employeeApi, factoryApi, importApi } from '@/lib/api'
 import { formatBreakTimeForDisplay } from '@/lib/formatBreakTime'
 import type {
   EmployeeResponse,
@@ -24,6 +24,8 @@ export default function FactoriesPage() {
   const [isEditingFactory, setIsEditingFactory] = useState(false)
   const [factoryFormData, setFactoryFormData] = useState<FactoryUpdate>({})
   const [expandedLines, setExpandedLines] = useState<Set<number>>(new Set())
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [showAllEmployees, setShowAllEmployees] = useState(false) // false = active only (default)
 
   const toast = useToastActions()
   const { confirmDelete } = useConfirmActions()
@@ -44,8 +46,12 @@ export default function FactoriesPage() {
 
   // Fetch employees for the selected factory
   const { data: employees = [], isLoading: isLoadingEmployees } = useQuery({
-    queryKey: ['employees', 'by-factory', selectedFactoryId],
-    queryFn: () => selectedFactoryId ? employeeApi.getList({ factory_id: selectedFactoryId, limit: 500 }) : [],
+    queryKey: ['employees', 'by-factory', selectedFactoryId, showAllEmployees],
+    queryFn: () => selectedFactoryId ? employeeApi.getList({
+      factory_id: selectedFactoryId,
+      limit: 500,
+      status: showAllEmployees ? 'all' : 'active'
+    }) : [],
     enabled: !!selectedFactoryId,
   })
 
@@ -61,6 +67,33 @@ export default function FactoriesPage() {
     })
     return grouped
   }, [employees])
+
+  // Group unassigned employees by their line_name and department
+  const unassignedByLineName = useMemo(() => {
+    const unassigned = employeesByLine.get(null) || []
+    const grouped = new Map<string, EmployeeResponse[]>()
+
+    unassigned.forEach(emp => {
+      // Create a group key from department and line_name
+      const dept = (emp as any).department || ''
+      const lineName = (emp as any).line_name || ''
+      const groupKey = dept && lineName ? `${dept} / ${lineName}` :
+                       dept ? dept :
+                       lineName ? lineName :
+                       '未分類'
+
+      const existing = grouped.get(groupKey) || []
+      grouped.set(groupKey, [...existing, emp])
+    })
+
+    // Sort by group key and convert to array
+    return Array.from(grouped.entries()).sort((a, b) => {
+      // Put 未分類 at the end
+      if (a[0] === '未分類') return 1
+      if (b[0] === '未分類') return -1
+      return a[0].localeCompare(b[0])
+    })
+  }, [employeesByLine])
 
   // Mutations
   const updateFactoryMutation = useUpdateFactory(selectedFactoryId!)
@@ -285,6 +318,29 @@ export default function FactoriesPage() {
     setExpandedLines(newExpanded)
   }
 
+  // Sync employees to factories from Excel
+  const handleSyncEmployeesToFactories = async () => {
+    setIsSyncing(true)
+    try {
+      const result = await importApi.syncEmployeesToFactories()
+      if (result.success) {
+        toast.success(`同期完了: 新規${result.linked_count}件, 更新${result.updated_count}件`)
+        // Refresh data
+        window.location.reload()
+      } else {
+        toast.error(`同期エラー: ${result.message}`)
+        if (result.not_found_factories.length > 0) {
+          console.warn('Factories not found:', result.not_found_factories)
+        }
+      }
+    } catch (error: any) {
+      console.error('Sync failed:', error)
+      toast.error(`同期に失敗しました: ${error.message || '不明なエラー'}`)
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
   // Helper to format break time for display
   const getBreakTimeSummary = (breakTimeDescription?: string, breakMinutes?: number) => {
     if (!breakTimeDescription || breakTimeDescription.trim() === '') {
@@ -340,6 +396,41 @@ export default function FactoriesPage() {
         { label: 'ダッシュボード', href: '/' },
         { label: '派遣先企業・工場管理', href: '/factories' }
       ]} />
+
+      {/* Sync Button - Prominent at top */}
+      <div className="bg-white border-b border-gray-200 px-4 py-3 mb-0">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">社員台帳から社員と工場をリンク</span>
+          </div>
+          <button
+            onClick={handleSyncEmployeesToFactories}
+            disabled={isSyncing}
+            className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
+              isSyncing
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-green-600 hover:bg-green-700 text-white'
+            }`}
+          >
+            {isSyncing ? (
+              <>
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                <span>同期中...</span>
+              </>
+            ) : (
+              <>
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span>社員・工場同期</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
 
       {/* Authentication Warning */}
       {!isAuthenticated && (
@@ -897,8 +988,8 @@ export default function FactoriesPage() {
                 </div>
               </div>
 
-              {/* Conflict Date & Break Minutes (inline) */}
-              <div className="flex flex-wrap gap-6 mb-6">
+              {/* Conflict Date (inline) */}
+              <div className="flex flex-wrap gap-6 mb-4">
                 <div>
                   <span className="text-sm text-gray-600">📅 抵触日:</span>
                   {isEditingFactory ? (
@@ -917,22 +1008,73 @@ export default function FactoriesPage() {
                     </span>
                   )}
                 </div>
-                <div>
-                  <span className="text-sm text-gray-600">⏰ 休憩:</span>
-                  {isEditingFactory ? (
-                    <input
-                      type="number"
-                      value={factoryFormData.break_minutes || 0}
-                      onChange={(e) => handleFieldChange('break_minutes', parseInt(e.target.value))}
-                      className="ml-2 px-3 py-1 border border-gray-300 rounded-md w-20"
-                      min="0"
-                    />
-                  ) : (
-                    <span className="font-medium ml-2">
-                      {getBreakTimeSummary(factoryDetail.break_time_description, factoryDetail.break_minutes)}
+              </div>
+
+              {/* Break Times Section - Multiple breaks per factory */}
+              <div className="border-2 border-amber-300 rounded-lg p-4 mb-6 bg-amber-50/80">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">⏰</span>
+                    <h3 className="font-bold text-amber-800 text-lg">休憩時間設定</h3>
+                    <span className="text-xs bg-amber-200 text-amber-800 px-2 py-1 rounded-full font-semibold">
+                      {factoryDetail.breaks?.filter((b: any) => b.is_active).length || 0}件
                     </span>
-                  )}
+                  </div>
+                  <button
+                    onClick={() => router.push(`/factories/${selectedFactoryId}`)}
+                    className="text-sm px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium shadow-sm"
+                  >
+                    ✏️ 編集・追加
+                  </button>
                 </div>
+
+                {factoryDetail.breaks && factoryDetail.breaks.filter((b: any) => b.is_active).length > 0 ? (
+                  <div className="grid gap-2">
+                    {factoryDetail.breaks
+                      .filter((b: any) => b.is_active)
+                      .sort((a: any, b: any) => (a.display_order || 0) - (b.display_order || 0))
+                      .map((breakItem: any) => (
+                        <div
+                          key={breakItem.id}
+                          className="bg-white rounded-lg px-4 py-3 border border-amber-200 flex items-center justify-between shadow-sm"
+                        >
+                          <div className="flex items-center gap-4">
+                            <span className="font-bold text-amber-700 min-w-[80px] text-base">
+                              {breakItem.break_name}
+                            </span>
+                            {breakItem.break_start && breakItem.break_end && (
+                              <span className="text-gray-700 font-mono">
+                                {breakItem.break_start.slice(0, 5)} ~ {breakItem.break_end.slice(0, 5)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3">
+                            {breakItem.break_minutes && (
+                              <span className="text-base font-bold text-amber-600 bg-amber-100 px-2 py-1 rounded">
+                                {breakItem.break_minutes}分
+                              </span>
+                            )}
+                            {breakItem.description && (
+                              <span className="text-sm text-gray-500 max-w-[200px] truncate">
+                                ({breakItem.description})
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-amber-700 bg-white rounded-lg border-2 border-dashed border-amber-300">
+                    <p className="text-base mb-2">⚠️ 休憩時間が設定されていません</p>
+                    <p className="text-sm text-amber-600 mb-3">昼勤・夜勤・残業時の休憩を設定できます</p>
+                    <button
+                      onClick={() => router.push(`/factories/${selectedFactoryId}`)}
+                      className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors font-medium"
+                    >
+                      今すぐ設定する →
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Action Buttons for Factory Edit */}
@@ -967,17 +1109,34 @@ export default function FactoriesPage() {
               {/* Production Lines Section */}
               <div className="border-t pt-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold">
-                    生産ライン ({factoryDetail.lines?.length || 0})
-                  </h3>
-                  {!isEditingFactory && (
-                    <button
-                      onClick={() => router.push(`/factories/${selectedFactoryId}/lines/create`)}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      + ライン追加
-                    </button>
-                  )}
+                  <div className="flex items-center gap-4">
+                    <h3 className="text-lg font-semibold">
+                      生産ライン ({factoryDetail.lines?.length || 0})
+                    </h3>
+                    <span className="text-sm text-gray-500">
+                      | 社員: {employees.length}名
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    {/* Employee Filter Checkbox */}
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={showAllEmployees}
+                        onChange={(e) => setShowAllEmployees(e.target.checked)}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-600">退社者も表示</span>
+                    </label>
+                    {!isEditingFactory && (
+                      <button
+                        onClick={() => router.push(`/factories/${selectedFactoryId}/lines/create`)}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        + ライン追加
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* LineCard Components */}
@@ -1017,29 +1176,62 @@ export default function FactoriesPage() {
                       </div>
                     )}
 
-                    {/* Employees without line assignment */}
+                    {/* Employees without line assignment - grouped by line_name/department */}
                     {employeesByLine.has(null) && employeesByLine.get(null)!.length > 0 && (
                       <div className="mt-6 border-t pt-6">
-                        <h4 className="text-lg font-medium mb-3 text-gray-700">
-                          ライン未割当社員 ({employeesByLine.get(null)!.length}名)
+                        <h4 className="text-lg font-medium mb-4 text-gray-700">
+                          ライン未割当社員 ({employeesByLine.get(null)!.length}名) - Excelデータ別グループ
                         </h4>
-                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                            {employeesByLine.get(null)!.map((emp) => (
-                              <div key={emp.id} className="bg-white rounded-md px-3 py-2 border border-gray-200">
-                                <div className="text-sm font-medium text-gray-900">
-                                  {emp.employee_number}
+
+                        <div className="space-y-4">
+                          {unassignedByLineName.map(([groupName, groupEmployees]) => (
+                            <div key={groupName} className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
+                              {/* Group Header */}
+                              <div className="bg-gray-100 px-4 py-2 border-b border-gray-200 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-orange-500">📋</span>
+                                  <span className="font-medium text-gray-800">{groupName}</span>
                                 </div>
-                                <div className="text-xs text-gray-600">
-                                  {emp.display_name || emp.full_name_kana || emp.full_name_kanji}
+                                <span className="text-sm text-gray-600 bg-white px-2 py-0.5 rounded-full">
+                                  {groupEmployees.length}名
+                                </span>
+                              </div>
+
+                              {/* Employees Grid */}
+                              <div className="p-3">
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                                  {groupEmployees.map((emp) => (
+                                    <div
+                                      key={emp.id}
+                                      className="bg-white rounded-md px-3 py-2 border border-gray-200 hover:border-blue-300 hover:shadow-sm transition-all"
+                                    >
+                                      <div className="text-sm font-medium text-gray-900">
+                                        {emp.employee_number}
+                                      </div>
+                                      <div className="text-xs text-gray-700 font-medium">
+                                        {emp.full_name_kanji || emp.display_name}
+                                      </div>
+                                      {emp.full_name_kana && (
+                                        <div className="text-xs text-gray-500">
+                                          {emp.full_name_kana}
+                                        </div>
+                                      )}
+                                      {(emp as any).status === 'resigned' && (
+                                        <span className="inline-block mt-1 text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded">
+                                          退社
+                                        </span>
+                                      )}
+                                    </div>
+                                  ))}
                                 </div>
                               </div>
-                            ))}
-                          </div>
-                          <p className="mt-3 text-sm text-yellow-700">
-                            これらの社員はラインに割り当てられていません。ライン管理から割り当ててください。
-                          </p>
+                            </div>
+                          ))}
                         </div>
+
+                        <p className="mt-4 text-sm text-yellow-700 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                          💡 これらの社員はExcelの配属先/ラインデータがありますが、システムのラインに紐付いていません。
+                        </p>
                       </div>
                     )}
                   </div>

@@ -183,6 +183,7 @@ class Factory(Base):
     # Relationships
     # ========================================
     lines = relationship("FactoryLine", back_populates="factory", cascade="all, delete-orphan")
+    breaks = relationship("FactoryBreak", back_populates="factory", cascade="all, delete-orphan")
     employees = relationship("Employee", back_populates="factory")
     kobetsu_contracts = relationship("KobetsuKeiyakusho", back_populates="factory")
 
@@ -267,3 +268,47 @@ class FactoryLine(Base):
 
     def __repr__(self):
         return f"<FactoryLine {self.factory_id}:{self.line_name}>"
+
+
+class FactoryBreak(Base):
+    """
+    休憩時間 - Break times for each factory.
+
+    Each factory can have multiple break configurations for different shifts:
+    - 昼勤 (day shift)
+    - 夜勤 (night shift)
+    - 残業時 (overtime)
+    - その他 (other custom breaks)
+    """
+    __tablename__ = "factory_breaks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    factory_id = Column(Integer, ForeignKey("factories.id", ondelete="CASCADE"), nullable=False)
+
+    # Break identification
+    break_name = Column(String(100), nullable=False)  # e.g., "昼勤", "夜勤", "残業時"
+
+    # Break time details
+    break_start = Column(Time)  # e.g., 11:00
+    break_end = Column(Time)  # e.g., 11:45
+    break_minutes = Column(Integer)  # Duration in minutes (e.g., 45)
+
+    # Optional description for complex rules
+    description = Column(Text)  # Free text description
+
+    # Display and status
+    display_order = Column(Integer, default=0)  # For ordering in UI
+    is_active = Column(Boolean, default=True)
+
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    # Relationship
+    factory = relationship("Factory", back_populates="breaks")
+
+    __table_args__ = (
+        Index('ix_factory_breaks_factory', 'factory_id'),
+    )
+
+    def __repr__(self):
+        return f"<FactoryBreak {self.factory_id}:{self.break_name}>"

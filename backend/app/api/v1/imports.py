@@ -344,6 +344,132 @@ async def download_factory_template(
         )
 
 
+# ========================================
+# EMPLOYEE-FACTORY SYNC ENDPOINTS
+# ========================================
+
+class SyncEmployeesRequest(BaseModel):
+    """Request for employee-factory sync."""
+    excel_path: Optional[str] = None  # If None, uses default path
+
+
+class SyncEmployeesResponse(BaseModel):
+    """Response from employee-factory sync."""
+    success: bool
+    message: str
+    linked_count: int = 0
+    updated_count: int = 0
+    not_found_employees_count: int = 0
+    not_found_factories_count: int = 0
+    not_found_factories: List[dict] = []
+    errors: List[dict] = []
+
+
+@router.post("/employees/sync-to-factories", response_model=SyncEmployeesResponse)
+@limiter.limit(RateLimits.IMPORT_EXECUTE)
+async def sync_employees_to_factories(
+    request: Request,
+    response: Response,
+    sync_request: SyncEmployeesRequest = None,
+    db: Session = Depends(get_db),
+    # current_user: dict = Depends(get_current_user),  # TODO: Re-enable auth in production
+):
+    """
+    Sincroniza empleados con fábricas usando el archivo Excel de empleados.
+
+    Lee la tabla DBGenzaiX del Excel y vincula empleados a fábricas basándose en:
+    - 派遣先 (destino de envío) → company_name, plant_name
+    - 配属先 (departamento) → department
+    - 配属ライン (línea) → line_name
+
+    El mapeo de 派遣先 a (company_name, plant_name) está definido en EMPLOYEE_TO_FACTORY_MAPPING.
+
+    Args:
+        excel_path: Ruta al archivo Excel (opcional).
+                   Por defecto usa: D:/【新】社員台帳(UNS)T　2022.04.05～.xlsm
+
+    Returns:
+        Estadísticas de la sincronización:
+        - linked_count: Nuevos vínculos creados
+        - updated_count: Vínculos actualizados
+        - not_found_employees_count: Empleados no encontrados en DB
+        - not_found_factories_count: Fábricas no encontradas en DB
+    """
+    service = ImportService(db)
+
+    # Get Excel path
+    excel_path = None
+    if sync_request and sync_request.excel_path:
+        excel_path = sync_request.excel_path
+
+    # If no path provided, use default
+    if not excel_path:
+        import os
+        # Try common paths
+        possible_paths = [
+            'D:/【新】社員台帳(UNS)T　2022.04.05～.xlsm',
+            '/app/data/shain_daicho.xlsm',
+            '/d/【新】社員台帳(UNS)T　2022.04.05～.xlsm',
+        ]
+        for path in possible_paths:
+            if os.path.exists(path):
+                excel_path = path
+                break
+
+    if not excel_path:
+        return SyncEmployeesResponse(
+            success=False,
+            message="Excel file not found. Please provide excel_path.",
+            errors=[{"error": "Excel file not found. Checked paths: D:/【新】社員台帳(UNS)T　2022.04.05～.xlsm"}]
+        )
+
+    result = service.sync_employees_from_excel(excel_path)
+
+    return SyncEmployeesResponse(
+        success=result.success,
+        message=result.message,
+        linked_count=result.imported_count,
+        updated_count=result.updated_count,
+        not_found_employees_count=result.skipped_count,
+        not_found_factories_count=len(result.preview_data.get('not_found_factories', [])) if isinstance(result.preview_data, dict) else 0,
+        not_found_factories=result.preview_data.get('not_found_factories', []) if isinstance(result.preview_data, dict) else [],
+        errors=[{"row": e.row, "field": e.field, "message": e.message} for e in result.errors]
+    )
+
+
+@router.post("/employees/sync-from-db", response_model=SyncEmployeesResponse)
+@limiter.limit(RateLimits.IMPORT_EXECUTE)
+async def sync_employees_from_db(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+    # current_user: dict = Depends(get_current_user),  # TODO: Re-enable auth in production
+):
+    """
+    Sincroniza empleados con fábricas usando datos existentes en la base de datos.
+
+    Usa el campo company_name del empleado para vincularlo a su fábrica.
+    Este endpoint es útil cuando los empleados ya tienen company_name pero no factory_id.
+
+    Returns:
+        Estadísticas de la sincronización
+    """
+    service = ImportService(db)
+    result = service.sync_employees_to_factories_from_db()
+
+    return SyncEmployeesResponse(
+        success=True,
+        message=result.get("message", "Sync completed"),
+        linked_count=result.get("linked_count", 0),
+        not_found_factories_count=result.get("not_linked_count", 0),
+        not_found_factories=result.get("not_linked", [])[:50]
+    )
+
+
+# ========================================
+# TEMPLATE DOWNLOAD ENDPOINTS
+# ========================================
+
 @router.get("/templates/employees")
 async def download_employee_template():
     """

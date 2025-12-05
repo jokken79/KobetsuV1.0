@@ -1,11 +1,11 @@
 @echo off
 REM ============================================
-REM UNS Kobetsu Keiyakusho - Windows Startup Script
+REM KOB24 Kobetsu Keiyakusho - Windows Startup Script
 REM ============================================
 
 echo.
 echo ==========================================
-echo   UNS Kobetsu Keiyakusho System
+echo   KOB24 Kobetsu Keiyakusho System
 echo   Individual Contract Management
 echo ==========================================
 echo.
@@ -50,10 +50,10 @@ echo.
 echo [SUCCESS] Services started!
 echo.
 echo Access points:
-echo   - Frontend:  http://localhost:3010
-echo   - Backend:   http://localhost:8010
-echo   - API Docs:  http://localhost:8010/docs
-echo   - Adminer:   http://localhost:8090
+echo   - Frontend:  http://localhost:3024
+echo   - Backend:   http://localhost:8024
+echo   - API Docs:  http://localhost:8024/docs
+echo   - Adminer:   http://localhost:8924
 echo.
 goto :eof
 
@@ -92,7 +92,7 @@ goto :eof
 
 :migrate
 echo [INFO] Running database migrations...
-docker-compose exec kobetsu-backend alembic upgrade head
+docker-compose exec kob24-backend alembic upgrade head
 echo [SUCCESS] Migrations complete.
 goto :eof
 

@@ -50,6 +50,48 @@ class ComplaintHandlerInfo(BaseModel):
 
 
 # ========================================
+# FACTORY BREAK SCHEMAS
+# ========================================
+
+class FactoryBreakBase(BaseModel):
+    """Base schema for factory break times."""
+    break_name: str = Field(..., min_length=1, max_length=100, description="休憩名 (e.g., 昼勤, 夜勤)")
+    break_start: Optional[time] = Field(None, description="休憩開始時間")
+    break_end: Optional[time] = Field(None, description="休憩終了時間")
+    break_minutes: Optional[int] = Field(None, ge=0, le=180, description="休憩時間（分）")
+    description: Optional[str] = Field(None, description="休憩の詳細説明")
+    display_order: int = Field(default=0, description="表示順序")
+    is_active: bool = Field(default=True, description="有効フラグ")
+
+
+class FactoryBreakCreate(FactoryBreakBase):
+    """Schema for creating a factory break."""
+    pass
+
+
+class FactoryBreakUpdate(BaseModel):
+    """Schema for updating a factory break."""
+    break_name: Optional[str] = None
+    break_start: Optional[time] = None
+    break_end: Optional[time] = None
+    break_minutes: Optional[int] = Field(None, ge=0, le=180)
+    description: Optional[str] = None
+    display_order: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
+class FactoryBreakResponse(FactoryBreakBase):
+    """Response schema for factory break."""
+    id: int
+    factory_id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+# ========================================
 # FACTORY LINE SCHEMAS
 # ========================================
 
@@ -355,6 +397,7 @@ class FactoryResponse(FactoryBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
     lines: List[FactoryLineResponse] = []
+    breaks: List[FactoryBreakResponse] = []
     employees_count: int = 0
 
     class Config:

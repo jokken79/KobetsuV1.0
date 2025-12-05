@@ -1,61 +1,54 @@
 # ========================================
-# UNS Kobetsu Keiyakusho - Docker Compose
+# KOB24 Kobetsu Keiyakusho - Docker Compose
 # ========================================
-# Nombres únicos con prefijo 'uns-kobetsu-' para evitar conflictos
-# Puertos únicos para evitar conflictos:
-#   PostgreSQL: 5442
-#   Redis:      6389
-#   Backend:    8010
-#   Frontend:   3010
-#   Adminer:    8090
+# Nombres únicos con prefijo 'kob24-' para evitar conflictos
+# Puertos únicos:
+#   PostgreSQL: 5424
+#   Redis:      6324
+#   Backend:    8024
+#   Frontend:   3024
+#   Adminer:    8924
 # ========================================
 
 services:
   # ========================================
   # PostgreSQL Database
   # ========================================
-  uns-kobetsu-db:
+  kob24-db:
     image: postgres:15-alpine
-    container_name: uns-kobetsu-db
+    container_name: kob24-db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-kobetsu_db}
-      POSTGRES_USER: ${POSTGRES_USER:-kobetsu_admin}
-      # WARNING: Change password in production! Set POSTGRES_PASSWORD env var
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-CHANGE_THIS_IN_PRODUCTION}
+      POSTGRES_DB: ${POSTGRES_DB:-kob24_db}
+      POSTGRES_USER: ${POSTGRES_USER:-kob24_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kob24_secure_2024}
     ports:
-      - "${KOBETSU_DB_PORT:-5442}:5432"
+      - "${KOBETSU_DB_PORT:-5424}:5432"
     volumes:
-      - uns_kobetsu_postgres_data:/var/lib/postgresql/data
+      - kob24_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kobetsu_admin}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kob24_admin}"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
     networks:
-      - uns-kobetsu-network
+      - kob24-network
     labels:
-      - "app.name=uns-kobetsu-keiyakusho"
+      - "app.name=kob24-keiyakusho"
       - "app.component=database"
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-        reservations:
-          memory: 256M
 
   # ========================================
   # Redis Cache
   # ========================================
-  uns-kobetsu-redis:
+  kob24-redis:
     image: redis:7-alpine
-    container_name: uns-kobetsu-redis
+    container_name: kob24-redis
     restart: unless-stopped
     ports:
-      - "${KOBETSU_REDIS_PORT:-6389}:6379"
+      - "${KOBETSU_REDIS_PORT:-6324}:6379"
     volumes:
-      - uns_kobetsu_redis_data:/data
+      - kob24_redis_data:/data
     command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -64,60 +57,42 @@ services:
       retries: 5
       start_period: 5s
     networks:
-      - uns-kobetsu-network
+      - kob24-network
     labels:
-      - "app.name=uns-kobetsu-keiyakusho"
+      - "app.name=kob24-keiyakusho"
       - "app.component=cache"
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-        reservations:
-          memory: 128M
 
   # ========================================
   # FastAPI Backend
   # ========================================
-  uns-kobetsu-backend:
+  kob24-backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    image: uns-kobetsu-keiyakusho-backend:latest
-    container_name: uns-kobetsu-backend
+    image: kob24-backend:latest
+    container_name: kob24-backend
     restart: unless-stopped
     environment:
-      # Database (internal Docker network)
-      DATABASE_URL: postgresql://${POSTGRES_USER:-kobetsu_admin}:${POSTGRES_PASSWORD:-CHANGE_THIS_IN_PRODUCTION}@uns-kobetsu-db:5432/${POSTGRES_DB:-kobetsu_db}
-
-      # Redis (internal Docker network)
-      REDIS_URL: redis://uns-kobetsu-redis:6379/0
-
-      # JWT - WARNING: MUST set SECRET_KEY in production with strong random value!
-      SECRET_KEY: ${SECRET_KEY:-INSECURE_DEV_KEY_DO_NOT_USE_IN_PRODUCTION}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-kob24_admin}:${POSTGRES_PASSWORD:-kob24_secure_2024}@kob24-db:5432/${POSTGRES_DB:-kob24_db}
+      REDIS_URL: redis://kob24-redis:6379/0
+      SECRET_KEY: ${SECRET_KEY:-kob24_dev_secret_key_change_in_prod}
       ALGORITHM: ${ALGORITHM:-HS256}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
-
-      # CORS
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3010}
-
-      # App - Set DEBUG=false in production!
-      DEBUG: ${DEBUG:-false}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3024}
+      DEBUG: ${DEBUG:-true}
       ENVIRONMENT: ${ENVIRONMENT:-development}
-
-      # Sync - Data synchronization from network/local files
       SYNC_DATA_PATH: /network_data
-      FACTORIES_DIR: config/factories
+      FACTORIES_DIR: .
     ports:
-      - "${KOBETSU_BACKEND_PORT:-8010}:8000"
+      - "${KOBETSU_BACKEND_PORT:-8024}:8000"
     volumes:
       - ./backend:/app
-      - uns_kobetsu_outputs:/app/outputs
-      # Network data path - set SYNC_SOURCE_PATH env var or comment out for dev
+      - kob24_outputs:/app/outputs
       - ${SYNC_SOURCE_PATH:-./data/sync}:/network_data
     depends_on:
-      uns-kobetsu-db:
+      kob24-db:
         condition: service_healthy
-      uns-kobetsu-redis:
+      kob24-redis:
         condition: service_healthy
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     healthcheck:
@@ -127,38 +102,32 @@ services:
       retries: 3
       start_period: 40s
     networks:
-      - uns-kobetsu-network
+      - kob24-network
     labels:
-      - "app.name=uns-kobetsu-keiyakusho"
+      - "app.name=kob24-keiyakusho"
       - "app.component=backend"
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-        reservations:
-          memory: 256M
 
   # ========================================
   # Next.js Frontend
   # ========================================
-  uns-kobetsu-frontend:
+  kob24-frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    image: uns-kobetsu-keiyakusho-frontend:latest
-    container_name: uns-kobetsu-frontend
+    image: kob24-frontend:latest
+    container_name: kob24-frontend
     restart: unless-stopped
     environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8010/api/v1}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8024/api/v1}
       NODE_ENV: ${NODE_ENV:-development}
     ports:
-      - "${KOBETSU_FRONTEND_PORT:-3010}:3000"
+      - "${KOBETSU_FRONTEND_PORT:-3024}:3000"
     volumes:
       - ./frontend:/app
       - /app/node_modules
       - /app/.next
     depends_on:
-      uns-kobetsu-backend:
+      kob24-backend:
         condition: service_healthy
     command: npm run dev
     healthcheck:
@@ -168,73 +137,61 @@ services:
       retries: 3
       start_period: 40s
     networks:
-      - uns-kobetsu-network
+      - kob24-network
     labels:
-      - "app.name=uns-kobetsu-keiyakusho"
+      - "app.name=kob24-keiyakusho"
       - "app.component=frontend"
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-        reservations:
-          memory: 256M
 
   # ========================================
   # Adminer (Database UI)
   # ========================================
-  uns-kobetsu-adminer:
+  kob24-adminer:
     image: adminer:latest
-    container_name: uns-kobetsu-adminer
+    container_name: kob24-adminer
     restart: unless-stopped
     ports:
-      - "${KOBETSU_ADMINER_PORT:-8090}:8080"
+      - "${KOBETSU_ADMINER_PORT:-8924}:8080"
     environment:
-      ADMINER_DEFAULT_SERVER: uns-kobetsu-db
+      ADMINER_DEFAULT_SERVER: kob24-db
     depends_on:
-      - uns-kobetsu-db
+      - kob24-db
     networks:
-      - uns-kobetsu-network
+      - kob24-network
     labels:
-      - "app.name=uns-kobetsu-keiyakusho"
+      - "app.name=kob24-keiyakusho"
       - "app.component=adminer"
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-        reservations:
-          memory: 64M
 
 # ========================================
 # Networks
 # ========================================
 networks:
-  uns-kobetsu-network:
-    name: uns-kobetsu-keiyakusho-network
+  kob24-network:
+    name: kob24-keiyakusho-network
     driver: bridge
     labels:
-      - "app.name=uns-kobetsu-keiyakusho"
+      - "app.name=kob24-keiyakusho"
 
 # ========================================
-# Volumes (all prefixed with uns_kobetsu_)
+# Volumes
 # ========================================
 volumes:
-  uns_kobetsu_postgres_data:
-    name: uns-kobetsu-keiyakusho-postgres-data
+  kob24_postgres_data:
+    name: kob24-postgres-data
     driver: local
     labels:
-      - "app.name=uns-kobetsu-keiyakusho"
+      - "app.name=kob24-keiyakusho"
       - "app.component=database"
 
-  uns_kobetsu_redis_data:
-    name: uns-kobetsu-keiyakusho-redis-data
+  kob24_redis_data:
+    name: kob24-redis-data
     driver: local
     labels:
-      - "app.name=uns-kobetsu-keiyakusho"
+      - "app.name=kob24-keiyakusho"
       - "app.component=cache"
 
-  uns_kobetsu_outputs:
-    name: uns-kobetsu-keiyakusho-outputs
+  kob24_outputs:
+    name: kob24-outputs
     driver: local
     labels:
-      - "app.name=uns-kobetsu-keiyakusho"
+      - "app.name=kob24-keiyakusho"
       - "app.component=storage"

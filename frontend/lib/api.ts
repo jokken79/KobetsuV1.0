@@ -21,6 +21,9 @@ import type {
   FactoryLineCreate,
   FactoryLineUpdate,
   FactoryLineResponse,
+  FactoryBreakCreate,
+  FactoryBreakUpdate,
+  FactoryBreakResponse,
   CompanyOption,
   PlantOption,
   DepartmentOption,
@@ -596,6 +599,35 @@ export const factoryApi = {
   deleteLine: async (lineId: number): Promise<void> => {
     await apiClient.delete(`/factories/lines/${lineId}`)
   },
+
+  // ========================================
+  // FACTORY BREAK CRUD
+  // ========================================
+
+  // Get breaks for a factory
+  getBreaksByFactory: async (factoryId: number, isActive?: boolean): Promise<FactoryBreakResponse[]> => {
+    const response = await apiClient.get<FactoryBreakResponse[]>(`/factories/${factoryId}/breaks`, {
+      params: { is_active: isActive },
+    })
+    return response.data
+  },
+
+  // Create a new break
+  createBreak: async (factoryId: number, data: FactoryBreakCreate): Promise<FactoryBreakResponse> => {
+    const response = await apiClient.post<FactoryBreakResponse>(`/factories/${factoryId}/breaks`, data)
+    return response.data
+  },
+
+  // Update a break
+  updateBreak: async (breakId: number, data: FactoryBreakUpdate): Promise<FactoryBreakResponse> => {
+    const response = await apiClient.put<FactoryBreakResponse>(`/factories/breaks/${breakId}`, data)
+    return response.data
+  },
+
+  // Delete a break (soft delete)
+  deleteBreak: async (breakId: number): Promise<void> => {
+    await apiClient.delete(`/factories/breaks/${breakId}`)
+  },
 }
 
 // Employee API
@@ -677,6 +709,17 @@ export interface ImportResponse {
   message: string
 }
 
+export interface SyncEmployeesToFactoriesResponse {
+  success: boolean
+  message: string
+  linked_count: number
+  updated_count: number
+  not_found_employees_count: number
+  not_found_factories_count: number
+  not_found_factories: { hakenski: string; company_name: string; plant_name: string }[]
+  errors: { row?: number; field?: string; message?: string; error?: string }[]
+}
+
 export const importApi = {
   // Preview factory import
   previewFactories: async (file: File): Promise<ImportResponse> => {
@@ -729,6 +772,15 @@ export const importApi = {
     const response = await apiClient.post<ImportResponse>('/import/employees/sync', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
+    return response.data
+  },
+
+  // Sync employees to factories (from Excel file)
+  syncEmployeesToFactories: async (excelPath?: string): Promise<SyncEmployeesToFactoriesResponse> => {
+    const response = await apiClient.post<SyncEmployeesToFactoriesResponse>(
+      '/import/employees/sync-to-factories',
+      excelPath ? { excel_path: excelPath } : {}
+    )
     return response.data
   },
 

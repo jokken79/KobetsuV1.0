@@ -73,9 +73,10 @@ class RateLimits:
     AUTH_REFRESH = "20 per minute"  # Token refresh
 
     # Import/Export operations - resource intensive
-    IMPORT_PREVIEW = "10 per minute"  # Preview import data
-    IMPORT_EXECUTE = "5 per minute"  # Execute import
-    EXPORT_DOCUMENT = "10 per minute"  # Generate PDFs/documents
+    # Very high limits for local development batch operations (39+ files at once)
+    IMPORT_PREVIEW = "500 per minute"  # Preview import data - needs to handle batch
+    IMPORT_EXECUTE = "500 per minute"  # Execute import - needs to handle batch
+    EXPORT_DOCUMENT = "100 per minute"  # Generate PDFs/documents
 
     # General CRUD operations - standard limits
     CRUD_READ = "200 per minute"  # GET requests

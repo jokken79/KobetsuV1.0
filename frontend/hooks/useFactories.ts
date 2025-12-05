@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import apiClient from '@/lib/api';
 import {
   FactoryListItem,
   FactoryResponse,
@@ -14,7 +14,7 @@ export function useFactoryList() {
   return useQuery({
     queryKey: ['factories', 'list'],
     queryFn: async () => {
-      const { data } = await api.get<FactoryListItem[]>('/factories');
+      const { data } = await apiClient.get<FactoryListItem[]>('/factories');
       return data;
     },
     staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
@@ -29,7 +29,7 @@ export function useFactory(factoryId: number | null) {
     queryKey: ['factories', factoryId],
     queryFn: async () => {
       if (!factoryId) return null;
-      const { data } = await api.get<FactoryResponse>(`/factories/${factoryId}`);
+      const { data } = await apiClient.get<FactoryResponse>(`/factories/${factoryId}`);
       return data;
     },
     enabled: !!factoryId,
@@ -44,7 +44,7 @@ export function useCreateFactory() {
 
   return useMutation({
     mutationFn: async (data: FactoryCreate) => {
-      const { data: result } = await api.post<FactoryResponse>('/factories', data);
+      const { data: result } = await apiClient.post<FactoryResponse>('/factories', data);
       return result;
     },
     onSuccess: () => {
@@ -62,7 +62,7 @@ export function useUpdateFactory(factoryId: number) {
 
   return useMutation({
     mutationFn: async (data: FactoryUpdate) => {
-      const { data: result } = await api.put<FactoryResponse>(`/factories/${factoryId}`, data);
+      const { data: result } = await apiClient.put<FactoryResponse>(`/factories/${factoryId}`, data);
       return result;
     },
     onSuccess: (data) => {
@@ -82,7 +82,7 @@ export function useDeleteFactory() {
 
   return useMutation({
     mutationFn: async (factoryId: number) => {
-      await api.delete(`/factories/${factoryId}`);
+      await apiClient.delete(`/factories/${factoryId}`);
     },
     onSuccess: () => {
       // Invalidate the factory list
@@ -98,7 +98,7 @@ export function useFactoriesByCompany() {
   return useQuery({
     queryKey: ['factories', 'by-company'],
     queryFn: async () => {
-      const { data } = await api.get<FactoryListItem[]>('/factories');
+      const { data } = await apiClient.get<FactoryListItem[]>('/factories');
 
       // Group factories by company
       const grouped = new Map<string, FactoryListItem[]>();

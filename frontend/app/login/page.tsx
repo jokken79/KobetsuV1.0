@@ -136,7 +136,7 @@ export default function LoginPage() {
         <div className="bg-gray-50 rounded-lg p-4 text-sm">
           <p className="text-gray-600 mb-2">For testing, create an admin user:</p>
           <code className="block bg-gray-100 p-2 rounded text-xs text-gray-700">
-            docker exec -it uns-kobetsu-backend python scripts/create_admin.py
+            docker exec -it kob24-backend python scripts/create_admin.py
           </code>
           <p className="text-gray-500 mt-2 text-xs">
             Default: admin@example.com / admin123

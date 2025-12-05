@@ -11,11 +11,12 @@ from sqlalchemy import func, distinct
 
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.models.factory import Factory, FactoryLine
+from app.models.factory import Factory, FactoryLine, FactoryBreak
 from app.models.employee import Employee
 from app.schemas.factory import (
     FactoryCreate, FactoryUpdate, FactoryResponse, FactoryListItem,
     FactoryLineCreate, FactoryLineUpdate, FactoryLineResponse,
+    FactoryBreakCreate, FactoryBreakUpdate, FactoryBreakResponse,
     CompanyOption, PlantOption, DepartmentOption, LineOption,
     FactoryCascadeData, FactoryJSONImport
 )
@@ -83,8 +84,7 @@ async def list_factories(
         ).scalar()
 
         employees_count = db.query(func.count(Employee.id)).filter(
-            Employee.factory_id == factory.id,
-            Employee.status == "active"
+            Employee.factory_id == factory.id
         ).scalar()
 
         result.append(FactoryListItem(
@@ -158,7 +158,8 @@ async def get_factory(
 ):
     """Get factory details by ID."""
     factory = db.query(Factory).options(
-        joinedload(Factory.lines)
+        joinedload(Factory.lines),
+        joinedload(Factory.breaks)
     ).filter(Factory.id == factory_id).first()
 
     if not factory:
@@ -167,10 +168,9 @@ async def get_factory(
             detail="Factory not found"
         )
 
-    # Count employees
+    # Count employees (all statuses)
     employees_count = db.query(func.count(Employee.id)).filter(
-        Employee.factory_id == factory.id,
-        Employee.status == "active"
+        Employee.factory_id == factory.id
     ).scalar()
 
     response = FactoryResponse.model_validate(factory)
@@ -343,6 +343,89 @@ async def delete_factory_line(
         raise HTTPException(status_code=404, detail="Line not found")
 
     line.is_active = False
+    db.commit()
+
+
+# ========================================
+# FACTORY BREAK CRUD
+# ========================================
+
+@router.get("/{factory_id}/breaks", response_model=List[FactoryBreakResponse])
+async def list_factory_breaks(
+    factory_id: int,
+    is_active: Optional[bool] = True,
+    db: Session = Depends(get_db),
+    # current_user: dict = Depends(get_current_user)  # TODO: Re-enable auth in production
+):
+    """Get all break times for a factory."""
+    factory = db.query(Factory).filter(Factory.id == factory_id).first()
+    if not factory:
+        raise HTTPException(status_code=404, detail="Factory not found")
+
+    query = db.query(FactoryBreak).filter(FactoryBreak.factory_id == factory_id)
+
+    if is_active is not None:
+        query = query.filter(FactoryBreak.is_active == is_active)
+
+    return query.order_by(FactoryBreak.display_order, FactoryBreak.break_name).all()
+
+
+@router.post("/{factory_id}/breaks", response_model=FactoryBreakResponse, status_code=status.HTTP_201_CREATED)
+async def create_factory_break(
+    factory_id: int,
+    break_data: FactoryBreakCreate,
+    db: Session = Depends(get_db),
+    # current_user: dict = Depends(get_current_user)  # TODO: Re-enable auth in production
+):
+    """Create a new break time for a factory."""
+    factory = db.query(Factory).filter(Factory.id == factory_id).first()
+    if not factory:
+        raise HTTPException(status_code=404, detail="Factory not found")
+
+    factory_break = FactoryBreak(factory_id=factory_id, **break_data.model_dump())
+    db.add(factory_break)
+    db.commit()
+    db.refresh(factory_break)
+
+    return factory_break
+
+
+@router.put("/breaks/{break_id}", response_model=FactoryBreakResponse)
+async def update_factory_break(
+    break_id: int,
+    break_data: FactoryBreakUpdate,
+    db: Session = Depends(get_db),
+    # current_user: dict = Depends(get_current_user)  # TODO: Re-enable auth in production
+):
+    """Update a factory break time."""
+    factory_break = db.query(FactoryBreak).filter(FactoryBreak.id == break_id).first()
+
+    if not factory_break:
+        raise HTTPException(status_code=404, detail="Break not found")
+
+    update_data = break_data.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(factory_break, field, value)
+
+    db.commit()
+    db.refresh(factory_break)
+
+    return factory_break
+
+
+@router.delete("/breaks/{break_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_factory_break(
+    break_id: int,
+    db: Session = Depends(get_db),
+    # current_user: dict = Depends(get_current_user)  # TODO: Re-enable auth in production
+):
+    """Delete a factory break time (soft delete)."""
+    factory_break = db.query(FactoryBreak).filter(FactoryBreak.id == break_id).first()
+
+    if not factory_break:
+        raise HTTPException(status_code=404, detail="Break not found")
+
+    factory_break.is_active = False
     db.commit()
 
 

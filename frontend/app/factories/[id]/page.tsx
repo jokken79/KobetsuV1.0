@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { factoryApi } from '@/lib/api'
-import type { FactoryUpdate, FactoryLineUpdate, FactoryLineCreate } from '@/types'
+import type { FactoryUpdate, FactoryLineUpdate, FactoryLineCreate, FactoryBreakCreate, FactoryBreakUpdate } from '@/types'
 import { Breadcrumbs, dashboardBreadcrumb } from '@/components/common/Breadcrumbs'
 import { formatBreakTimeForDisplay } from '@/lib/formatBreakTime'
 
@@ -27,6 +27,233 @@ interface FactoryLine {
   holiday_rate: string | null
   is_active: boolean
   display_order: number
+}
+
+interface FactoryBreak {
+  id: number
+  factory_id: number
+  break_name: string
+  break_start: string | null
+  break_end: string | null
+  break_minutes: number | null
+  description: string | null
+  display_order: number
+  is_active: boolean
+}
+
+// Break Edit Modal Component
+function BreakEditModal({
+  breakData,
+  factoryId,
+  onClose,
+  onSave,
+  isNew = false,
+}: {
+  breakData: Partial<FactoryBreak> | null
+  factoryId: number
+  onClose: () => void
+  onSave: () => void
+  isNew?: boolean
+}) {
+  const queryClient = useQueryClient()
+  const [formData, setFormData] = useState<Partial<FactoryBreak>>({
+    break_name: '',
+    break_start: '',
+    break_end: '',
+    break_minutes: undefined,
+    description: '',
+    display_order: 0,
+    is_active: true,
+    ...breakData,
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: (data: FactoryBreakUpdate) => factoryApi.updateBreak(breakData!.id!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['factory', factoryId] })
+      alert('休憩時間を更新しました')
+      onSave()
+    },
+    onError: (error: any) => {
+      alert(`エラー: ${error.response?.data?.detail || error.message}`)
+    },
+  })
+
+  const createMutation = useMutation({
+    mutationFn: (data: FactoryBreakCreate) => factoryApi.createBreak(factoryId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['factory', factoryId] })
+      alert('新規休憩時間を作成しました')
+      onSave()
+    },
+    onError: (error: any) => {
+      alert(`エラー: ${error.response?.data?.detail || error.message}`)
+    },
+  })
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const submitData = {
+      break_name: formData.break_name || undefined,
+      break_start: formData.break_start || undefined,
+      break_end: formData.break_end || undefined,
+      break_minutes: formData.break_minutes || undefined,
+      description: formData.description || undefined,
+      display_order: formData.display_order,
+      is_active: formData.is_active,
+    }
+
+    if (isNew) {
+      createMutation.mutate(submitData as FactoryBreakCreate)
+    } else {
+      updateMutation.mutate(submitData as FactoryBreakUpdate)
+    }
+  }
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked :
+              type === 'number' ? (value ? parseInt(value) : undefined) : value,
+    }))
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full animate-scale-in">
+        <div className="bg-amber-600 text-white px-6 py-4 flex items-center justify-between flex-shrink-0 rounded-t-lg">
+          <div>
+            <h3 className="text-xl font-bold tracking-tight">
+              {isNew ? '✨ 新規休憩時間' : '📝 休憩時間編集'}
+            </h3>
+            <p className="text-amber-100 text-sm mt-1">休憩の名前と時間を入力してください</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-white/80 hover:text-white hover:bg-white/10 w-8 h-8 rounded-lg transition-all duration-200 flex items-center justify-center"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          {/* Break Name */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">休憩名 <span className="text-red-500">*</span></label>
+            <input
+              type="text"
+              name="break_name"
+              value={formData.break_name || ''}
+              onChange={handleChange}
+              required
+              placeholder="例: 昼勤, 夜勤, 残業時"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+            />
+          </div>
+
+          {/* Time Range */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">開始時間</label>
+              <input
+                type="time"
+                name="break_start"
+                value={formData.break_start || ''}
+                onChange={handleChange}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">終了時間</label>
+              <input
+                type="time"
+                name="break_end"
+                value={formData.break_end || ''}
+                onChange={handleChange}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+              />
+            </div>
+          </div>
+
+          {/* Break Minutes */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">休憩時間（分）</label>
+              <input
+                type="number"
+                name="break_minutes"
+                value={formData.break_minutes || ''}
+                onChange={handleChange}
+                min={0}
+                max={180}
+                placeholder="例: 45"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">表示順</label>
+              <input
+                type="number"
+                name="display_order"
+                value={formData.display_order || 0}
+                onChange={handleChange}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+              />
+            </div>
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">説明</label>
+            <textarea
+              name="description"
+              value={formData.description || ''}
+              onChange={handleChange}
+              rows={2}
+              placeholder="例: 昼勤の休憩時間"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all resize-none"
+            />
+          </div>
+
+          {/* Status */}
+          <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
+            <input
+              type="checkbox"
+              id="break_is_active"
+              name="is_active"
+              checked={formData.is_active ?? true}
+              onChange={handleChange}
+              className="w-5 h-5 text-amber-600 rounded-lg focus:ring-amber-500 transition-colors"
+            />
+            <label htmlFor="break_is_active" className="text-sm font-semibold text-gray-700 cursor-pointer">
+              有効な休憩として登録
+            </label>
+          </div>
+
+          {/* Actions */}
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-5 py-2.5 border border-gray-300 rounded-xl text-gray-700 font-medium hover:bg-white hover:shadow-md transition-all duration-200"
+            >
+              キャンセル
+            </button>
+            <button
+              type="submit"
+              disabled={updateMutation.isPending || createMutation.isPending}
+              className="px-6 py-2.5 bg-amber-600 text-white rounded-lg font-semibold hover:bg-amber-700 disabled:bg-gray-400 transition-colors"
+            >
+              {updateMutation.isPending || createMutation.isPending ? '保存中...' : '保存'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
 }
 
 // Line Edit Modal Component
@@ -359,6 +586,8 @@ export default function EditFactoryPage() {
   const [expandedLines, setExpandedLines] = useState<Set<number>>(new Set())
   const [editingLine, setEditingLine] = useState<FactoryLine | null>(null)
   const [isCreatingLine, setIsCreatingLine] = useState(false)
+  const [editingBreak, setEditingBreak] = useState<FactoryBreak | null>(null)
+  const [isCreatingBreak, setIsCreatingBreak] = useState(false)
 
   // Fetch factory data
   const { data: factory, isLoading } = useQuery({
@@ -428,6 +657,17 @@ export default function EditFactoryPage() {
     },
   })
 
+  const deleteBreakMutation = useMutation({
+    mutationFn: (breakId: number) => factoryApi.deleteBreak(breakId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['factory', factoryId] })
+      alert('休憩を削除しました（無効に変更）')
+    },
+    onError: (error: any) => {
+      alert(`エラー: ${error.response?.data?.detail || error.message}`)
+    },
+  })
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     updateMutation.mutate(formData as FactoryUpdate)
@@ -450,6 +690,12 @@ export default function EditFactoryPage() {
   const handleDeleteLine = (lineId: number, lineName: string) => {
     if (confirm(`本当にライン「${lineName}」を削除しますか？（無効に変更されます）`)) {
       deleteLineMutation.mutate(lineId)
+    }
+  }
+
+  const handleDeleteBreak = (breakId: number, breakName: string) => {
+    if (confirm(`本当に休憩「${breakName}」を削除しますか？（無効に変更されます）`)) {
+      deleteBreakMutation.mutate(breakId)
     }
   }
 
@@ -487,6 +733,7 @@ export default function EditFactoryPage() {
   }
 
   const lines: FactoryLine[] = factory.lines || []
+  const breaks: FactoryBreak[] = factory.breaks || []
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -1112,6 +1359,118 @@ export default function EditFactoryPage() {
         )}
       </div>
 
+      {/* Break Times Section */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mt-8">
+        <div className="bg-white border-b border-gray-200 px-8 py-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
+                <svg className="w-6 h-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">休憩時間設定</h2>
+                <p className="text-gray-500 text-sm mt-1">
+                  <span className="inline-flex items-center px-2 py-0.5 bg-amber-100 rounded-full text-xs font-semibold text-amber-700">
+                    {breaks.length}件登録
+                  </span>
+                  <span className="ml-2 text-gray-400">昼勤・夜勤・残業などの休憩時間</span>
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsCreatingBreak(true)}
+              className="px-4 py-2 bg-amber-600 text-white hover:bg-amber-700 rounded-lg transition-colors font-medium flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              新規休憩追加
+            </button>
+          </div>
+        </div>
+
+        {breaks.length === 0 ? (
+          <div className="p-12 text-center">
+            <div className="w-20 h-20 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+              <svg className="w-10 h-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">休憩時間が登録されていません</h3>
+            <p className="text-gray-500 mb-6">昼勤・夜勤などの休憩時間を追加しましょう</p>
+            <button
+              type="button"
+              onClick={() => setIsCreatingBreak(true)}
+              className="px-5 py-2.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-semibold transition-colors"
+            >
+              最初の休憩を追加
+            </button>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {breaks.map((breakItem) => (
+              <div key={breakItem.id} className="px-8 py-5 hover:bg-gray-50/50 transition-all duration-200 flex items-center justify-between">
+                <div className="flex items-center gap-4 flex-1">
+                  <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
+                    <span className="text-amber-600 font-bold text-base">
+                      {breakItem.display_order || '#'}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 mb-1.5">
+                      <span className="font-bold text-gray-900 text-base">{breakItem.break_name}</span>
+                      <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${breakItem.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {breakItem.is_active ? '有効' : '無効'}
+                      </span>
+                    </div>
+                    <div className="text-sm text-gray-600 flex flex-wrap items-center gap-x-4 gap-y-1">
+                      {breakItem.break_start && breakItem.break_end && (
+                        <span className="flex items-center gap-1.5">
+                          <svg className="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span className="font-medium text-gray-700">
+                            {breakItem.break_start.slice(0, 5)} ~ {breakItem.break_end.slice(0, 5)}
+                          </span>
+                        </span>
+                      )}
+                      {breakItem.break_minutes && (
+                        <span className="flex items-center gap-1.5">
+                          <span className="font-semibold text-amber-600">({breakItem.break_minutes}分)</span>
+                        </span>
+                      )}
+                      {breakItem.description && (
+                        <span className="text-gray-500 truncate max-w-xs">{breakItem.description}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingBreak(breakItem)}
+                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-white hover:shadow-sm transition-all duration-200"
+                  >
+                    編集
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteBreak(breakItem.id, breakItem.break_name)}
+                    disabled={deleteBreakMutation.isPending}
+                    className="px-3 py-1.5 text-sm border border-red-300 rounded-lg text-red-600 font-medium hover:bg-red-50 transition-all duration-200 disabled:opacity-50"
+                  >
+                    削除
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Line Edit Modal */}
       {editingLine && (
         <LineEditModal
@@ -1129,6 +1488,27 @@ export default function EditFactoryPage() {
           factoryId={factoryId}
           onClose={() => setIsCreatingLine(false)}
           onSave={() => setIsCreatingLine(false)}
+          isNew={true}
+        />
+      )}
+
+      {/* Break Edit Modal */}
+      {editingBreak && (
+        <BreakEditModal
+          breakData={editingBreak}
+          factoryId={factoryId}
+          onClose={() => setEditingBreak(null)}
+          onSave={() => setEditingBreak(null)}
+        />
+      )}
+
+      {/* Break Create Modal */}
+      {isCreatingBreak && (
+        <BreakEditModal
+          breakData={null}
+          factoryId={factoryId}
+          onClose={() => setIsCreatingBreak(false)}
+          onSave={() => setIsCreatingBreak(false)}
           isNew={true}
         />
       )}

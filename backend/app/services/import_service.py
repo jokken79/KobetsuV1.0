@@ -6,6 +6,7 @@ Provides preview/validation before actual import.
 Automatically links employees to factories and lines during import.
 """
 import json
+import os
 import re
 from datetime import date, datetime
 from decimal import Decimal
@@ -16,60 +17,81 @@ import pandas as pd
 from openpyxl import load_workbook
 from sqlalchemy.orm import Session
 
-from app.models.factory import Factory, FactoryLine
+from app.models.factory import Factory, FactoryLine, FactoryBreak
 from app.models.employee import Employee
 
 
 # Manual mapping for employee company_name -> (factory_company, factory_plant)
 # This handles cases where automatic matching would fail
+# Mapeo completo de 派遣先 (Excel) → (company_name, plant_name) en DB
+# Basado en análisis de DBGenzaiX del archivo 【新】社員台帳
 EMPLOYEE_TO_FACTORY_MAPPING = {
-    # 高雄工業 variations
+    # ==========================================
+    # 高雄工業 (185+54+72+21+141 = 473 empleados)
+    # ==========================================
     "高雄工業 岡山": ("高雄工業株式会社", "岡山工場"),
     "高雄工業 本社": ("高雄工業株式会社", "本社工場"),
     "高雄工業 海南第一": ("高雄工業株式会社", "海南第一工場"),
     "高雄工業 海南第二": ("高雄工業株式会社", "海南第二工場"),
     "高雄工業 静岡": ("高雄工業株式会社", "静岡工場"),
 
-    # 加藤木材工業
+    # ==========================================
+    # 加藤木材工業 (57+12 = 69 empleados)
+    # ==========================================
     "加藤木材工業 本社": ("加藤木材工業株式会社", "本社工場"),
     "加藤木材工業 春日井": ("加藤木材工業株式会社", "春日井工場"),
 
-    # ユアサ工機
+    # ==========================================
+    # コーリツ (50+37+14+42 = 143 empleados)
+    # ==========================================
+    "コーリツ 本社": ("コーリツ株式会社", "本社工場"),
+    "コーリツ 乙川": ("コーリツ株式会社", "乙川工場"),
+    "コーリツ 亀崎": ("コーリツ株式会社", "亀崎工場"),
+    "コーリツ 州の崎": ("コーリツ株式会社", "州の崎工場"),
+
+    # ==========================================
+    # ユアサ工機 (9+10+2 = 21 empleados)
+    # ==========================================
     "ユアサ工機 新城": ("ユアサ工機株式会社", "新城工場"),
     "ユアサ工機 御津": ("ユアサ工機株式会社", "本社工場"),
+    "ユアサ工機 本社": ("ユアサ工機株式会社", "本社工場"),
 
-    # Simple matches
-    "瑞陵精機": ("瑞陵精機株式会社", "恵那工場"),
-    "三幸技研": ("三幸技研株式会社", "本社工場"),
-    "六甲電子": ("六甲電子株式会社", "本社工場"),
-    "川原鉄工所": ("株式会社川原鉄工所", "本社工場"),
-    "オーツカ": ("株式会社オーツカ", "関ケ原工場"),
-    "ピーエムアイ": ("ピーエムアイ有限会社", "本社工場"),
-    "セイビテック": ("セイビテック株式会社", ""),
-
-    # Half-width katakana variations
-    "ﾃｨｰｹｰｴﾝｼﾞﾆｱﾘﾝｸﾞ": ("ティーケーエンジニアリング株式会社", "海南第二工場"),
-    "ﾌｪﾆﾃｯｸｾﾐｺﾝﾀﾞｸﾀｰ 岡山": ("フェニテックセミコンダクター(株)", "鹿児島工場"),
-
-    # 美鈴工業
-    "美鈴工業 本社": ("株式会社美鈴工業", "本社工場"),
-    "美鈴工業 本庄": ("株式会社美鈴工業", "本社工場"),
-
-    # PATEC
-    "PATEC": ("PATEC株式会社", "防府工場"),
-
-    # コーリツ
-    "コーリツ 本社": ("株式会社コーリツ", "本社工場"),
-    "コーリツ 乙川": ("株式会社コーリツ", "乙川工場"),
-    "コーリツ 亀崎": ("株式会社コーリツ", "亀崎工場"),
-    "コーリツ 州の崎": ("株式会社コーリツ", "州の崎工場"),
-
-    # プレテック
-    "プレテック": ("プレテック株式会社", "本社工場"),
-
-    # ワーク
+    # ==========================================
+    # ワーク (15+5+7 = 27 empleados)
+    # ==========================================
     "ワーク 堺": ("株式会社ワーク", "堺工場"),
+    "ワーク 岡山": ("株式会社ワーク", "岡山工場"),
     "ワーク 志紀": ("株式会社ワーク", "志紀工場"),
+
+    # ==========================================
+    # 美鈴工業 (1+3 = 4 empleados)
+    # ==========================================
+    "美鈴工業 本社": ("株式会社美鈴工業", "本社工場"),
+    "美鈴工業 本庄": ("株式会社美鈴工業", "本庄工場"),
+
+    # ==========================================
+    # フェニテック (20+23 = 43 empleados) - Half-width katakana
+    # ==========================================
+    "ﾌｪﾆﾃｯｸｾﾐｺﾝﾀﾞｸﾀｰ 岡山": ("フェニテックセミコンダクター株式会社", "岡山工場"),
+    "ﾌｪﾆﾃｯｸｾﾐｺﾝﾀﾞｸﾀｰ 鹿児島": ("フェニテックセミコンダクター株式会社", "鹿児島工場"),
+
+    # ==========================================
+    # Empresas con una sola ubicación
+    # ==========================================
+    "PATEC": ("PATEC株式会社", "防府工場"),  # 53 empleados
+    "瑞陵精機": ("瑞陵精機株式会社", "恵那工場"),  # 57 empleados
+    "川原鉄工所": ("株式会社川原鉄工所", "本社工場"),  # 40 empleados
+    "六甲電子": ("六甲電子株式会社", "本社工場"),  # 37 empleados
+    "ピーエムアイ": ("ピーエムアイ有限会社", "本社工場"),  # 37 empleados
+    "セイビテック": ("セイビテック株式会社", "本社工場"),  # 13 empleados
+    "三幸技研": ("三幸技研株式会社", "本社工場"),  # 11 empleados
+    "オーツカ": ("株式会社オーツカ", "関ケ原工場"),  # 9 empleados
+    "プレテック": ("プレテック株式会社", "本社工場"),  # 7 empleados
+    "アサヒフォージ": ("アサヒフォージ株式会社", "本社工場"),  # 3 empleados
+    "ﾃｨｰｹｰｴﾝｼﾞﾆｱﾘﾝｸﾞ": ("TK株式会社", "本社工場"),  # 3 empleados (TKE = ティーケーエンジニアリング)
+    "新日本ﾎｲｰﾙ工業": ("新日本ホイール工業株式会社", "本社工場"),  # 2 empleados
+    "三芳": ("株式会社三芳", "本社工場"),  # 1 empleado
+    "西岡工作所": ("有限会社西岡工作所", "本社工場"),  # 1 empleado
 }
 
 
@@ -112,7 +134,7 @@ class ImportResult:
             "updated_count": self.updated_count,
             "skipped_count": self.skipped_count,
             "errors": [e.to_dict() for e in self.errors],
-            "preview_data": self.preview_data[:100],  # Limit preview
+            "preview_data": self.preview_data[:1500],  # Limit preview (increased for large imports)
             "message": self.message
         }
 
@@ -1115,6 +1137,47 @@ class ImportService:
 
                 factory_line.is_active = True
 
+            # Import breaks if provided
+            breaks_data = factory_data.get("breaks", [])
+            for break_data in breaks_data:
+                break_name = break_data.get("break_name") or break_data.get("name", "")
+                if not break_name:
+                    continue
+
+                # Find or create break
+                factory_break = None
+                if existing:
+                    factory_break = self.db.query(FactoryBreak).filter(
+                        FactoryBreak.factory_id == factory.id,
+                        FactoryBreak.break_name == break_name
+                    ).first()
+
+                if not factory_break:
+                    factory_break = FactoryBreak(break_name=break_name)
+                    factory.breaks.append(factory_break)
+
+                # Parse time strings
+                def parse_time(val):
+                    if not val:
+                        return None
+                    if isinstance(val, str):
+                        val = val.strip()
+                        for fmt in ['%H:%M:%S', '%H:%M', '%H時%M分']:
+                            try:
+                                from datetime import time
+                                dt = datetime.strptime(val, fmt)
+                                return dt.time()
+                            except ValueError:
+                                continue
+                    return None
+
+                factory_break.break_start = parse_time(break_data.get("break_start") or break_data.get("start"))
+                factory_break.break_end = parse_time(break_data.get("break_end") or break_data.get("end"))
+                factory_break.break_minutes = break_data.get("break_minutes") or break_data.get("minutes")
+                factory_break.description = break_data.get("description")
+                factory_break.display_order = break_data.get("display_order", 0)
+                factory_break.is_active = True
+
             return factory, errors
 
         except Exception as e:
@@ -1202,3 +1265,246 @@ class ImportService:
             result.success = False
 
         return result
+
+    # ========================================
+    # EMPLOYEE-FACTORY SYNC FROM EXCEL
+    # ========================================
+
+    def sync_employees_from_excel(self, excel_path: str = None) -> ImportResult:
+        """
+        Sincroniza empleados con fábricas leyendo la tabla DBGenzaiX del Excel.
+
+        Lee las columnas 派遣先, 配属先, 配属ライン y usa EMPLOYEE_TO_FACTORY_MAPPING
+        para vincular empleados a sus fábricas correctas.
+
+        Args:
+            excel_path: Ruta al archivo Excel (opcional, usa default si no se provee)
+
+        Returns:
+            ImportResult con estadísticas de la sincronización
+        """
+        result = ImportResult()
+
+        try:
+            import pandas as pd
+
+            # Default path
+            if not excel_path:
+                excel_path = '/app/data/shain_daicho.xlsm'
+
+            if not os.path.exists(excel_path):
+                result.errors.append(ImportValidationError(0, "file", f"Archivo no encontrado: {excel_path}"))
+                result.message = "Archivo Excel no encontrado"
+                return result
+
+            # Read Excel
+            df = pd.read_excel(excel_path, sheet_name='DBGenzaiX', header=0)
+            result.total_rows = len(df)
+
+            linked_count = 0
+            updated_count = 0
+            not_found_employees = []
+            not_found_factories = []
+
+            for idx, row in df.iterrows():
+                try:
+                    employee_number = str(row.get('社員№', '')).strip()
+                    hakenski = str(row.get('派遣先', '')).strip()
+                    haizokusaki = str(row.get('配属先', '')).strip()
+                    line = str(row.get('配属ライン', '')).strip()
+
+                    # Skip rows without employee number or assignment
+                    if not employee_number or employee_number == 'nan' or not hakenski or hakenski == 'nan':
+                        continue
+
+                    # Find employee in database
+                    employee = self.db.query(Employee).filter(
+                        Employee.employee_number == employee_number
+                    ).first()
+
+                    if not employee:
+                        not_found_employees.append({
+                            "employee_number": employee_number,
+                            "hakenski": hakenski
+                        })
+                        continue
+
+                    # Get factory mapping
+                    if hakenski in EMPLOYEE_TO_FACTORY_MAPPING:
+                        company_name, plant_name = EMPLOYEE_TO_FACTORY_MAPPING[hakenski]
+                    else:
+                        # Try to find factory by partial match
+                        company_name = hakenski
+                        plant_name = ""
+
+                    # Find factory in database
+                    factory_query = self.db.query(Factory).filter(
+                        Factory.company_name.contains(company_name.replace('株式会社', '').replace('有限会社', ''))
+                    )
+
+                    if plant_name:
+                        factory = factory_query.filter(
+                            Factory.plant_name.contains(plant_name.replace('工場', ''))
+                        ).first()
+
+                        if not factory:
+                            factory = factory_query.first()
+                    else:
+                        factory = factory_query.first()
+
+                    if not factory:
+                        if hakenski not in [nf.get('hakenski') for nf in not_found_factories]:
+                            not_found_factories.append({
+                                "hakenski": hakenski,
+                                "company_name": company_name,
+                                "plant_name": plant_name
+                            })
+                        continue
+
+                    # Find factory line if possible
+                    factory_line = None
+                    if haizokusaki or line:
+                        line_query = self.db.query(FactoryLine).filter(
+                            FactoryLine.factory_id == factory.id,
+                            FactoryLine.is_active == True
+                        )
+
+                        if line and line != 'nan':
+                            factory_line = line_query.filter(
+                                FactoryLine.line_name.contains(line)
+                            ).first()
+
+                        if not factory_line and haizokusaki and haizokusaki != 'nan':
+                            factory_line = line_query.filter(
+                                FactoryLine.department.contains(haizokusaki)
+                            ).first()
+
+                    # Update employee
+                    was_linked = employee.factory_id is not None
+
+                    employee.factory_id = factory.id
+                    employee.factory_line_id = factory_line.id if factory_line else None
+                    employee.company_name = hakenski  # Keep original Excel value
+                    employee.department = haizokusaki if haizokusaki != 'nan' else None
+                    employee.line_name = line if line != 'nan' else None
+
+                    if was_linked:
+                        updated_count += 1
+                    else:
+                        linked_count += 1
+
+                except Exception as e:
+                    result.errors.append(ImportValidationError(
+                        idx + 1, "row", f"Error procesando fila: {str(e)}"
+                    ))
+
+            self.db.commit()
+
+            result.success = True
+            result.imported_count = linked_count
+            result.updated_count = updated_count
+            result.skipped_count = len(not_found_employees)
+
+            result.preview_data = {
+                "linked_count": linked_count,
+                "updated_count": updated_count,
+                "not_found_employees": not_found_employees[:50],
+                "not_found_factories": not_found_factories
+            }
+
+            result.message = f"同期完了: 新規リンク{linked_count}件, 更新{updated_count}件, 社員未検出{len(not_found_employees)}件, 工場未検出{len(not_found_factories)}件"
+
+        except Exception as e:
+            self.db.rollback()
+            result.errors.append(ImportValidationError(0, "sync", f"同期エラー: {str(e)}"))
+            result.message = f"同期失敗: {str(e)}"
+            result.success = False
+
+        return result
+
+    def sync_employees_to_factories_from_db(self) -> dict:
+        """
+        Sincroniza empleados con fábricas usando solo los datos existentes en la DB.
+
+        Usa el campo company_name del empleado y EMPLOYEE_TO_FACTORY_MAPPING
+        para vincular empleados a sus fábricas.
+
+        Returns:
+            dict con estadísticas de la sincronización
+        """
+        linked_count = 0
+        not_linked = []
+
+        # Get all employees that have company_name but no factory_id
+        employees = self.db.query(Employee).filter(
+            Employee.company_name.isnot(None),
+            Employee.company_name != ''
+        ).all()
+
+        for employee in employees:
+            company_name = employee.company_name.strip() if employee.company_name else ""
+
+            if not company_name:
+                continue
+
+            # Get factory mapping
+            if company_name in EMPLOYEE_TO_FACTORY_MAPPING:
+                factory_company, factory_plant = EMPLOYEE_TO_FACTORY_MAPPING[company_name]
+            else:
+                # Try direct search
+                factory_company = company_name
+                factory_plant = ""
+
+            # Find factory
+            factory_query = self.db.query(Factory).filter(
+                Factory.company_name.contains(factory_company.replace('株式会社', '').replace('有限会社', ''))
+            )
+
+            if factory_plant:
+                factory = factory_query.filter(
+                    Factory.plant_name.contains(factory_plant.replace('工場', ''))
+                ).first()
+
+                if not factory:
+                    factory = factory_query.first()
+            else:
+                factory = factory_query.first()
+
+            if factory:
+                # Find line if possible
+                factory_line = None
+                if employee.department or employee.line_name:
+                    line_query = self.db.query(FactoryLine).filter(
+                        FactoryLine.factory_id == factory.id,
+                        FactoryLine.is_active == True
+                    )
+
+                    if employee.line_name:
+                        factory_line = line_query.filter(
+                            FactoryLine.line_name.contains(employee.line_name)
+                        ).first()
+
+                    if not factory_line and employee.department:
+                        factory_line = line_query.filter(
+                            FactoryLine.department.contains(employee.department)
+                        ).first()
+
+                employee.factory_id = factory.id
+                employee.factory_line_id = factory_line.id if factory_line else None
+                linked_count += 1
+            else:
+                if company_name not in [n.get('company_name') for n in not_linked]:
+                    not_linked.append({
+                        "employee_id": employee.id,
+                        "employee_number": employee.employee_number,
+                        "company_name": company_name
+                    })
+
+        self.db.commit()
+
+        return {
+            "message": f"同期完了: {linked_count}件リンク済み",
+            "linked_count": linked_count,
+            "not_linked_count": len(not_linked),
+            "not_linked": not_linked[:50]
+        }

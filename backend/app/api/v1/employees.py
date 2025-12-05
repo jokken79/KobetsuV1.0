@@ -30,7 +30,7 @@ async def list_employees(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     search: Optional[str] = None,
-    status: Optional[str] = Query("active", description="Employee status filter"),
+    status: Optional[str] = Query("active", description="Employee status filter. Use 'all' or empty string to get all statuses."),
     company_name: Optional[str] = None,
     factory_id: Optional[int] = None,
     nationality: Optional[str] = None,
@@ -41,8 +41,8 @@ async def list_employees(
     """Get list of employees with optional filters."""
     query = db.query(Employee)
 
-    # Status filter
-    if status:
+    # Status filter (skip if "all" or empty)
+    if status and status.lower() != "all":
         query = query.filter(Employee.status == status)
 
     # Company filter
@@ -481,4 +481,57 @@ async def bulk_assign_employees(
         "not_found_count": len(not_found),
         "updated_ids": updated,
         "not_found_ids": not_found
+    }
+
+
+@router.post("/relink-to-factories", status_code=http_status.HTTP_200_OK)
+async def relink_employees_to_factories(
+    db: Session = Depends(get_db),
+    # current_user: dict = Depends(get_current_user)  # TODO: Re-enable in production
+):
+    """
+    Re-link employees to factories based on their company_name field.
+    Uses the EMPLOYEE_TO_FACTORY_MAPPING to match employee company names
+    to factory records.
+    """
+    from app.services.import_service import ImportService
+
+    import_service = ImportService(db)
+
+    # Get all employees with company_name that aren't linked
+    employees = db.query(Employee).filter(
+        or_(Employee.factory_id.is_(None), Employee.factory_line_id.is_(None)),
+        Employee.company_name.isnot(None),
+        Employee.company_name != ""
+    ).all()
+
+    linked_count = 0
+    not_linked = []
+
+    for employee in employees:
+        factory_id, factory_line_id = import_service._link_employee_to_factory(
+            employee,
+            employee.company_name or "",
+            employee.department or "",
+            employee.line_name or ""
+        )
+
+        if factory_id:
+            employee.factory_id = factory_id
+            employee.factory_line_id = factory_line_id
+            linked_count += 1
+        else:
+            not_linked.append({
+                "id": employee.id,
+                "employee_number": employee.employee_number,
+                "company_name": employee.company_name
+            })
+
+    db.commit()
+
+    return {
+        "message": f"Re-linked {linked_count} employees to factories",
+        "linked_count": linked_count,
+        "not_linked_count": len(not_linked),
+        "not_linked_employees": not_linked[:50]  # Limit to first 50 for response size
     }
