@@ -347,6 +347,59 @@ This file maintains persistent context across Claude sessions. Update it after m
 
 ## Session History
 
+### 2025-12-05 - Factory Shift Management System (勤務シフト管理)
+
+**User Request:** "tambien los horarios o turnos tambien quiero adicionar no son solo 2 aveces son 3 y aveces hay premio por tunos"
+
+**Translation:** User needed shift management supporting:
+- Multiple shifts per factory (not just 2, sometimes 3+)
+- Shift premiums/bonuses (premio por turno / 夜勤手当)
+
+**Full-Stack Implementation:**
+
+#### Backend
+- **Model:** `FactoryShift` ([backend/app/models/factory.py:317-362](backend/app/models/factory.py))
+  - `shift_name` - 昼勤, 夜勤, 第3シフト
+  - `shift_start`, `shift_end` - Time ranges
+  - `shift_premium` - Bonus amount (Decimal)
+  - `shift_premium_type` - 時給/日給/月額
+  - `display_order`, `is_active`
+- **Schemas:** FactoryShiftCreate, Update, Response
+- **Endpoints:** Full CRUD at `/factories/{id}/shifts`
+- **Migration:** Alembic auto-generated, applied successfully
+
+#### Frontend
+- **UI Theme:** Indigo (🔵) to distinguish from breaks (🟠)
+- **Components:**
+  - Shift list on `/factories` page with premium display
+  - ShiftEditModal on `/factories/[id]` page
+  - Dropdown for premium type (時給/日給/月額)
+- **Types:** Complete TypeScript interfaces
+- **API Client:** 4 functions in lib/api.ts
+
+#### Key Features
+- ✅ Support for 3+ shifts per factory
+- ✅ Shift premium system with flexible types
+- ✅ Same UI patterns as break management
+- ✅ Soft delete preservation
+- ✅ Display ordering
+
+**Files Changed (9):**
+1. backend/app/models/factory.py
+2. backend/app/schemas/factory.py
+3. backend/app/api/v1/factories.py
+4. backend/alembic/versions/20251205_153558_8525b0c5b893_add_factory_shifts_table_for_shift_.py
+5. frontend/types/index.ts
+6. frontend/lib/api.ts
+7. frontend/app/factories/page.tsx
+8. frontend/app/factories/[id]/page.tsx
+9. .claude/memory/project.md
+
+**Commit:** `9f2194e` - Pushed to GitHub
+**Status:** ✅ COMPLETE
+
+---
+
 ### 2025-12-05 - Multiple Break Times + Employee-Factory Sync
 
 **Funcionalidades Implementadas:**
