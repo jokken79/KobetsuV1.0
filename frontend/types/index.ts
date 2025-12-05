@@ -311,6 +311,44 @@ export interface FactoryBreakResponse {
   updated_at?: string
 }
 
+// Factory Shift types
+export interface FactoryShiftCreate {
+  shift_name: string
+  shift_start?: string
+  shift_end?: string
+  shift_premium?: number
+  shift_premium_type?: string
+  description?: string
+  display_order?: number
+  is_active?: boolean
+}
+
+export interface FactoryShiftUpdate {
+  shift_name?: string
+  shift_start?: string
+  shift_end?: string
+  shift_premium?: number
+  shift_premium_type?: string
+  description?: string
+  display_order?: number
+  is_active?: boolean
+}
+
+export interface FactoryShiftResponse {
+  id: number
+  factory_id: number
+  shift_name: string
+  shift_start?: string
+  shift_end?: string
+  shift_premium?: number
+  shift_premium_type?: string
+  description?: string
+  display_order: number
+  is_active: boolean
+  created_at: string
+  updated_at?: string
+}
+
 export interface FactoryCreate {
   factory_id?: string
   company_name: string
@@ -460,6 +498,7 @@ export interface FactoryResponse {
   updated_at?: string
   lines: FactoryLineResponse[]
   breaks: FactoryBreakResponse[]
+  shifts: FactoryShiftResponse[]
   employees_count: number
 }
 

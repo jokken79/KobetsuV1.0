@@ -24,6 +24,9 @@ import type {
   FactoryBreakCreate,
   FactoryBreakUpdate,
   FactoryBreakResponse,
+  FactoryShiftCreate,
+  FactoryShiftUpdate,
+  FactoryShiftResponse,
   CompanyOption,
   PlantOption,
   DepartmentOption,
@@ -627,6 +630,35 @@ export const factoryApi = {
   // Delete a break (soft delete)
   deleteBreak: async (breakId: number): Promise<void> => {
     await apiClient.delete(`/factories/breaks/${breakId}`)
+  },
+
+  // ========================================
+  // SHIFT FUNCTIONS (シフト管理)
+  // ========================================
+
+  // Get shifts for a factory
+  getShiftsByFactory: async (factoryId: number, isActive?: boolean): Promise<FactoryShiftResponse[]> => {
+    const response = await apiClient.get<FactoryShiftResponse[]>(`/factories/${factoryId}/shifts`, {
+      params: { is_active: isActive },
+    })
+    return response.data
+  },
+
+  // Create a new shift
+  createShift: async (factoryId: number, data: FactoryShiftCreate): Promise<FactoryShiftResponse> => {
+    const response = await apiClient.post<FactoryShiftResponse>(`/factories/${factoryId}/shifts`, data)
+    return response.data
+  },
+
+  // Update a shift
+  updateShift: async (shiftId: number, data: FactoryShiftUpdate): Promise<FactoryShiftResponse> => {
+    const response = await apiClient.put<FactoryShiftResponse>(`/factories/shifts/${shiftId}`, data)
+    return response.data
+  },
+
+  // Delete a shift (soft delete)
+  deleteShift: async (shiftId: number): Promise<void> => {
+    await apiClient.delete(`/factories/shifts/${shiftId}`)
   },
 }
 

@@ -7,7 +7,7 @@ This file maintains persistent context across Claude sessions. Update it after m
 - **Name**: UNS Kobetsu Keiyakusho Management System
 - **Purpose**: Managing 個別契約書 (individual dispatch contracts) for 労働者派遣法第26条 compliance
 - **Status**: In Development
-- **Last Updated**: 2025-12-04 (人材派遣個別契約書 PDF Clone Implementation)
+- **Last Updated**: 2025-12-05 (Multiple Break Times + Employee-Factory Sync)
 
 ## Architecture Decisions
 
@@ -346,6 +346,97 @@ This file maintains persistent context across Claude sessions. Update it after m
 | LibreOffice | 7.x | PDF conversion (headless mode in Docker) |
 
 ## Session History
+
+### 2025-12-05 - Multiple Break Times + Employee-Factory Sync
+
+**Funcionalidades Implementadas:**
+
+#### 1. Sistema de Múltiples Tiempos de Descanso (factory_breaks)
+
+**Problema:** El sistema solo permitía un valor de `break_minutes` por fábrica. El usuario necesitaba configurar múltiples descansos: 昼勤 (turno de día), 夜勤 (turno de noche), 残業時 (horas extras), etc.
+
+**Solución:**
+- Nueva tabla `factory_breaks` con campos:
+  - `break_name` (ej: 昼勤, 夜勤, 残業時)
+  - `break_start`, `break_end` (horarios)
+  - `break_minutes` (duración)
+  - `description`, `display_order`, `is_active`
+
+**Archivos Creados/Modificados:**
+
+| Archivo | Cambio |
+|---------|--------|
+| `backend/app/models/factory.py` | Nuevo modelo `FactoryBreak` |
+| `backend/app/schemas/factory.py` | `FactoryBreakCreate`, `FactoryBreakUpdate`, `FactoryBreakResponse` |
+| `backend/app/api/v1/factories.py` | CRUD endpoints para breaks |
+| `backend/alembic/versions/add_factory_breaks_table.py` | Migración de DB |
+| `frontend/app/factories/page.tsx` | Sección "休憩時間設定" con fondo amber |
+| `frontend/app/factories/[id]/page.tsx` | Modal de edición de breaks |
+| `frontend/lib/api.ts` | `factoryApi.createBreak`, `updateBreak`, `deleteBreak` |
+| `frontend/types/index.ts` | `FactoryBreak`, `FactoryBreakCreate`, `FactoryBreakUpdate` |
+
+**API Endpoints:**
+```
+GET    /factories/{factory_id}/breaks      - Lista breaks
+POST   /factories/{factory_id}/breaks      - Crear break
+PUT    /factories/breaks/{break_id}        - Actualizar break
+DELETE /factories/breaks/{break_id}        - Eliminar (soft delete)
+```
+
+#### 2. Sincronización Empleados-Fábricas
+
+**Problema:** Los empleados en la base de datos no estaban vinculados a sus fábricas correctas. El campo `派遣先` del Excel (ej: "高雄工業 岡山") necesitaba mapearse a `(company_name, plant_name)` en DB.
+
+**Solución:**
+- Diccionario `EMPLOYEE_TO_FACTORY_MAPPING` con 32 mapeos completos
+- Métodos de sincronización desde Excel y desde DB
+
+**Mapeo (ejemplos):**
+```python
+EMPLOYEE_TO_FACTORY_MAPPING = {
+    "高雄工業 岡山": ("高雄工業株式会社", "岡山工場"),
+    "高雄工業 本社": ("高雄工業株式会社", "本社工場"),
+    "コーリツ 本社": ("コーリツ株式会社", "本社工場"),
+    "PATEC": ("PATEC株式会社", "防府工場"),
+    # ... 32 mapeos en total
+}
+```
+
+**Archivos Modificados:**
+
+| Archivo | Cambio |
+|---------|--------|
+| `backend/app/services/import_service.py` | `sync_employees_from_excel()`, `sync_employees_to_factories_from_db()`, `EMPLOYEE_TO_FACTORY_MAPPING` |
+| `backend/app/api/v1/imports.py` | Endpoints `/employees/sync-to-factories`, `/employees/sync-from-db` |
+
+**API Endpoints:**
+```
+POST /import/employees/sync-to-factories  - Sync desde Excel DBGenzaiX
+POST /import/employees/sync-from-db       - Sync usando datos existentes en DB
+```
+
+#### 3. Filtro de Empleados Activos/Todos
+
+**Funcionalidad:** Checkbox "退社者も表示" en `/factories` para mostrar solo empleados activos (default) o incluir retirados.
+
+**Cambios:**
+- Estado `showAllEmployees` (default: `false`)
+- Query modificada: `status: showAllEmployees ? 'all' : 'active'`
+
+#### 4. UI Mejorada - Sección Breaks
+
+**Ubicación:** `/factories` después de seleccionar una fábrica
+
+**Diseño:**
+- Fondo amber (`border-2 border-amber-300 bg-amber-50/80`)
+- Título "⏰ 休憩時間設定" con contador de breaks
+- Botón "✏️ 編集・追加" que lleva a `/factories/[id]`
+- Lista de breaks con nombre, horario (11:00~11:45) y duración (45分)
+- Si no hay breaks: mensaje con botón para configurar
+
+**Commit:** `69c3958` - Pushed to GitHub
+
+---
 
 ### 2025-12-04 - Excel Document Generator (KobetsuExcelGenerator)
 

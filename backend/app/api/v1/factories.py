@@ -11,12 +11,13 @@ from sqlalchemy import func, distinct
 
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.models.factory import Factory, FactoryLine, FactoryBreak
+from app.models.factory import Factory, FactoryLine, FactoryBreak, FactoryShift
 from app.models.employee import Employee
 from app.schemas.factory import (
     FactoryCreate, FactoryUpdate, FactoryResponse, FactoryListItem,
     FactoryLineCreate, FactoryLineUpdate, FactoryLineResponse,
     FactoryBreakCreate, FactoryBreakUpdate, FactoryBreakResponse,
+    FactoryShiftCreate, FactoryShiftUpdate, FactoryShiftResponse,
     CompanyOption, PlantOption, DepartmentOption, LineOption,
     FactoryCascadeData, FactoryJSONImport
 )
@@ -426,6 +427,85 @@ async def delete_factory_break(
         raise HTTPException(status_code=404, detail="Break not found")
 
     factory_break.is_active = False
+    db.commit()
+
+
+# ========================================
+# FACTORY SHIFT ENDPOINTS
+# ========================================
+
+@router.get("/{factory_id}/shifts", response_model=List[FactoryShiftResponse])
+async def get_factory_shifts(
+    factory_id: int,
+    include_inactive: bool = False,
+    db: Session = Depends(get_db),
+    # current_user: dict = Depends(get_current_user)  # TODO: Re-enable auth in production
+):
+    """Get all shifts for a factory."""
+    query = db.query(FactoryShift).filter(FactoryShift.factory_id == factory_id)
+
+    if not include_inactive:
+        query = query.filter(FactoryShift.is_active == True)
+
+    return query.order_by(FactoryShift.display_order, FactoryShift.shift_name).all()
+
+
+@router.post("/{factory_id}/shifts", response_model=FactoryShiftResponse, status_code=status.HTTP_201_CREATED)
+async def create_factory_shift(
+    factory_id: int,
+    shift_data: FactoryShiftCreate,
+    db: Session = Depends(get_db),
+    # current_user: dict = Depends(get_current_user)  # TODO: Re-enable auth in production
+):
+    """Create a new shift for a factory."""
+    factory = db.query(Factory).filter(Factory.id == factory_id).first()
+    if not factory:
+        raise HTTPException(status_code=404, detail="Factory not found")
+
+    factory_shift = FactoryShift(factory_id=factory_id, **shift_data.model_dump())
+    db.add(factory_shift)
+    db.commit()
+    db.refresh(factory_shift)
+
+    return factory_shift
+
+
+@router.put("/shifts/{shift_id}", response_model=FactoryShiftResponse)
+async def update_factory_shift(
+    shift_id: int,
+    shift_data: FactoryShiftUpdate,
+    db: Session = Depends(get_db),
+    # current_user: dict = Depends(get_current_user)  # TODO: Re-enable auth in production
+):
+    """Update a factory shift."""
+    factory_shift = db.query(FactoryShift).filter(FactoryShift.id == shift_id).first()
+
+    if not factory_shift:
+        raise HTTPException(status_code=404, detail="Shift not found")
+
+    update_data = shift_data.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(factory_shift, field, value)
+
+    db.commit()
+    db.refresh(factory_shift)
+
+    return factory_shift
+
+
+@router.delete("/shifts/{shift_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_factory_shift(
+    shift_id: int,
+    db: Session = Depends(get_db),
+    # current_user: dict = Depends(get_current_user)  # TODO: Re-enable auth in production
+):
+    """Delete a factory shift (soft delete)."""
+    factory_shift = db.query(FactoryShift).filter(FactoryShift.id == shift_id).first()
+
+    if not factory_shift:
+        raise HTTPException(status_code=404, detail="Shift not found")
+
+    factory_shift.is_active = False
     db.commit()
 
 

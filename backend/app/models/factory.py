@@ -184,6 +184,7 @@ class Factory(Base):
     # ========================================
     lines = relationship("FactoryLine", back_populates="factory", cascade="all, delete-orphan")
     breaks = relationship("FactoryBreak", back_populates="factory", cascade="all, delete-orphan")
+    shifts = relationship("FactoryShift", back_populates="factory", cascade="all, delete-orphan")
     employees = relationship("Employee", back_populates="factory")
     kobetsu_contracts = relationship("KobetsuKeiyakusho", back_populates="factory")
 
@@ -312,3 +313,51 @@ class FactoryBreak(Base):
 
     def __repr__(self):
         return f"<FactoryBreak {self.factory_id}:{self.break_name}>"
+
+
+class FactoryShift(Base):
+    """
+    勤務シフト - Work shifts for each factory.
+
+    Each factory can have multiple shifts (not just 2, sometimes 3):
+    - 昼勤 (day shift)
+    - 夜勤 (night shift)
+    - 第3シフト (3rd shift)
+
+    Some shifts may have premiums/bonuses (夜勤手当).
+    """
+    __tablename__ = "factory_shifts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    factory_id = Column(Integer, ForeignKey("factories.id", ondelete="CASCADE"), nullable=False)
+
+    # Shift identification
+    shift_name = Column(String(100), nullable=False)  # e.g., "昼勤", "夜勤", "第3シフト"
+
+    # Shift time details
+    shift_start = Column(Time)  # e.g., 08:00
+    shift_end = Column(Time)  # e.g., 17:00
+
+    # Shift premium (premio por turno / 夜勤手当)
+    shift_premium = Column(Numeric(10, 2))  # Bonus amount (e.g., 5000.00)
+    shift_premium_type = Column(String(50))  # e.g., "時給" (hourly), "日給" (daily), "月額" (monthly)
+
+    # Optional description
+    description = Column(Text)  # Free text description
+
+    # Display and status
+    display_order = Column(Integer, default=0)  # For ordering in UI
+    is_active = Column(Boolean, default=True)
+
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    # Relationship
+    factory = relationship("Factory", back_populates="shifts")
+
+    __table_args__ = (
+        Index('ix_factory_shifts_factory', 'factory_id'),
+    )
+
+    def __repr__(self):
+        return f"<FactoryShift {self.factory_id}:{self.shift_name}>"

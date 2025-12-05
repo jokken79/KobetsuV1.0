@@ -1077,6 +1077,78 @@ export default function FactoriesPage() {
                 )}
               </div>
 
+              {/* Shift Schedule Section - Multiple shifts per factory (シフト管理) */}
+              <div className="border-2 border-indigo-300 rounded-lg p-4 mb-6 bg-indigo-50/80">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">🕐</span>
+                    <h3 className="font-bold text-indigo-800 text-lg">勤務シフト設定</h3>
+                    <span className="text-xs bg-indigo-200 text-indigo-800 px-2 py-1 rounded-full font-semibold">
+                      {factoryDetail.shifts?.filter((s: any) => s.is_active).length || 0}件
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => router.push(`/factories/${selectedFactoryId}`)}
+                    className="text-sm px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium shadow-sm"
+                  >
+                    ✏️ 編集・追加
+                  </button>
+                </div>
+
+                {factoryDetail.shifts && factoryDetail.shifts.filter((s: any) => s.is_active).length > 0 ? (
+                  <div className="grid gap-2">
+                    {factoryDetail.shifts
+                      .filter((s: any) => s.is_active)
+                      .sort((a: any, b: any) => (a.display_order || 0) - (b.display_order || 0))
+                      .map((shift: any) => (
+                        <div
+                          key={shift.id}
+                          className="bg-white rounded-lg px-4 py-3 border border-indigo-200 flex items-center justify-between shadow-sm"
+                        >
+                          <div className="flex items-center gap-4">
+                            <span className="font-bold text-indigo-700 min-w-[100px] text-base">
+                              {shift.shift_name}
+                            </span>
+                            {shift.shift_start && shift.shift_end && (
+                              <span className="text-gray-700 font-mono">
+                                {shift.shift_start.slice(0, 5)} ~ {shift.shift_end.slice(0, 5)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3">
+                            {shift.shift_premium && (
+                              <div className="flex items-center gap-1">
+                                <span className="text-base font-bold text-indigo-600 bg-indigo-100 px-2 py-1 rounded">
+                                  ¥{shift.shift_premium.toLocaleString()}
+                                </span>
+                                {shift.shift_premium_type && (
+                                  <span className="text-xs text-indigo-600">/{shift.shift_premium_type}</span>
+                                )}
+                              </div>
+                            )}
+                            {shift.description && (
+                              <span className="text-sm text-gray-500 max-w-[200px] truncate">
+                                ({shift.description})
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-indigo-700 bg-white rounded-lg border-2 border-dashed border-indigo-300">
+                    <p className="text-base mb-2">⚠️ 勤務シフトが設定されていません</p>
+                    <p className="text-sm text-indigo-600 mb-3">昼勤・夜勤・第3シフト等を設定できます（手当付き）</p>
+                    <button
+                      onClick={() => router.push(`/factories/${selectedFactoryId}`)}
+                      className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors font-medium"
+                    >
+                      今すぐ設定する →
+                    </button>
+                  </div>
+                )}
+              </div>
+
               {/* Action Buttons for Factory Edit */}
               {isEditingFactory && (
                 <div className="border-t pt-4 mb-6 flex justify-end gap-3">

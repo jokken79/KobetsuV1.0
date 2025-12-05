@@ -92,6 +92,50 @@ class FactoryBreakResponse(FactoryBreakBase):
 
 
 # ========================================
+# FACTORY SHIFT SCHEMAS
+# ========================================
+
+class FactoryShiftBase(BaseModel):
+    """Base schema for factory shifts."""
+    shift_name: str = Field(..., min_length=1, max_length=100, description="シフト名 (e.g., 昼勤, 夜勤, 第3シフト)")
+    shift_start: Optional[time] = Field(None, description="シフト開始時間")
+    shift_end: Optional[time] = Field(None, description="シフト終了時間")
+    shift_premium: Optional[Decimal] = Field(None, ge=0, description="シフト手当（円）")
+    shift_premium_type: Optional[str] = Field(None, max_length=50, description="手当種別 (e.g., 時給, 日給, 月額)")
+    description: Optional[str] = Field(None, description="シフトの詳細説明")
+    display_order: int = Field(default=0, description="表示順序")
+    is_active: bool = Field(default=True, description="有効フラグ")
+
+
+class FactoryShiftCreate(FactoryShiftBase):
+    """Schema for creating a factory shift."""
+    pass
+
+
+class FactoryShiftUpdate(BaseModel):
+    """Schema for updating a factory shift."""
+    shift_name: Optional[str] = None
+    shift_start: Optional[time] = None
+    shift_end: Optional[time] = None
+    shift_premium: Optional[Decimal] = Field(None, ge=0)
+    shift_premium_type: Optional[str] = None
+    description: Optional[str] = None
+    display_order: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
+class FactoryShiftResponse(FactoryShiftBase):
+    """Response schema for factory shift."""
+    id: int
+    factory_id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+# ========================================
 # FACTORY LINE SCHEMAS
 # ========================================
 
@@ -398,6 +442,7 @@ class FactoryResponse(FactoryBase):
     updated_at: Optional[datetime] = None
     lines: List[FactoryLineResponse] = []
     breaks: List[FactoryBreakResponse] = []
+    shifts: List[FactoryShiftResponse] = []
     employees_count: int = 0
 
     class Config:
