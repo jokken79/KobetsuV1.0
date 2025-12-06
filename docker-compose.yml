@@ -3,11 +3,11 @@
 # ========================================
 # Nombres únicos con prefijo 'kob24-' para evitar conflictos
 # Puertos únicos:
-#   PostgreSQL: 5424
-#   Redis:      6324
-#   Backend:    8024
-#   Frontend:   3024
-#   Adminer:    8924
+#   PostgreSQL: 5442
+#   Redis:      6389
+#   Backend:    8010
+#   Frontend:   3010
+#   Adminer:    8090
 # ========================================
 
 services:
@@ -23,7 +23,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-kob24_admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kob24_secure_2024}
     ports:
-      - "${KOBETSU_DB_PORT:-5424}:5432"
+      - "${KOBETSU_DB_PORT:-5442}:5432"
     volumes:
       - kob24_postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -46,7 +46,7 @@ services:
     container_name: kob24-redis
     restart: unless-stopped
     ports:
-      - "${KOBETSU_REDIS_PORT:-6324}:6379"
+      - "${KOBETSU_REDIS_PORT:-6389}:6379"
     volumes:
       - kob24_redis_data:/data
     command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
@@ -78,13 +78,13 @@ services:
       SECRET_KEY: ${SECRET_KEY:-kob24_dev_secret_key_change_in_prod}
       ALGORITHM: ${ALGORITHM:-HS256}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3024}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3010}
       DEBUG: ${DEBUG:-true}
       ENVIRONMENT: ${ENVIRONMENT:-development}
       SYNC_DATA_PATH: /network_data
       FACTORIES_DIR: .
     ports:
-      - "${KOBETSU_BACKEND_PORT:-8024}:8000"
+      - "${KOBETSU_BACKEND_PORT:-8010}:8000"
     volumes:
       - ./backend:/app
       - kob24_outputs:/app/outputs
@@ -118,10 +118,10 @@ services:
     container_name: kob24-frontend
     restart: unless-stopped
     environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8024/api/v1}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8010/api/v1}
       NODE_ENV: ${NODE_ENV:-development}
     ports:
-      - "${KOBETSU_FRONTEND_PORT:-3024}:3000"
+      - "${KOBETSU_FRONTEND_PORT:-3010}:3000"
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -150,7 +150,7 @@ services:
     container_name: kob24-adminer
     restart: unless-stopped
     ports:
-      - "${KOBETSU_ADMINER_PORT:-8924}:8080"
+      - "${KOBETSU_ADMINER_PORT:-8090}:8080"
     environment:
       ADMINER_DEFAULT_SERVER: kob24-db
     depends_on:

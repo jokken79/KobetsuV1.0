@@ -50,10 +50,10 @@ echo.
 echo [SUCCESS] Services started!
 echo.
 echo Access points:
-echo   - Frontend:  http://localhost:3024
-echo   - Backend:   http://localhost:8024
-echo   - API Docs:  http://localhost:8024/docs
-echo   - Adminer:   http://localhost:8924
+echo   - Frontend:  http://localhost:3010
+echo   - Backend:   http://localhost:8010
+echo   - API Docs:  http://localhost:8010/docs
+echo   - Adminer:   http://localhost:8090
 echo.
 goto :eof
 

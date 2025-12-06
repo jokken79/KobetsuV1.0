@@ -21,12 +21,12 @@ graph TD
         G(Red Docker: kob24-network)
     end
 
-    A -- HTTPS (Puerto 3024) --> B
+    A -- HTTPS (Puerto 3010) --> B
     B -- Peticiones API (Proxy) --> G
     G -- http://kob24-backend:8000 --> C
     C -- SQL (Puerto 5432) --> D
     C -- Datos de Sesión/Cache (Puerto 6379) --> E
-    F -- Acceso DB (Puerto 8924) --> D
+    F -- Acceso DB (Puerto 8090) --> D
 
     style B fill:#000,stroke:#fff,stroke-width:2px,color:#fff
     style C fill:#009688,stroke:#fff,stroke-width:2px,color:#fff
