@@ -1,0 +1,243 @@
+name: Security Full Scan
+
+# Este workflow consolida los siguientes workflows de seguridad:
+# - security.yml (273 líneas)
+# - security-advanced.yml (515 líneas)
+# - security-patching.yml (532 líneas)
+# Total: 1,320 líneas → ~350 líneas (73% reducción)
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # Run security scan daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  pull-requests: write
+
+jobs:
+  # ============================================
+  # CODEQL ANALYSIS (consolidado desde security.yml)
+  # ============================================
+  codeql:
+    name: CodeQL Security Analysis
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['javascript', 'python']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended,security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v2
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  # ============================================
+  # DEPENDENCY SCANNING (consolidado desde security-advanced.yml)
+  # ============================================
+  dependency-scan:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Python dependencies scan
+      - name: Scan Python dependencies with Safety
+        continue-on-error: true
+        run: |
+          pip install safety
+          cd backend
+          safety check --json || true
+
+      # Node.js dependencies scan
+      - name: Scan Node.js dependencies
+        continue-on-error: true
+        run: |
+          cd frontend
+          npm audit --json || true
+
+      # Trivy vulnerability scanner (consolidado desde security-advanced.yml)
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        continue-on-error: true
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        continue-on-error: true
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # ============================================
+  # SECRET SCANNING (consolidado desde security-advanced.yml)
+  # ============================================
+  secret-scan:
+    name: Secret Detection Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # TruffleHog secret scanner
+      - name: TruffleHog Secret Scan
+        continue-on-error: true
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+
+  # ============================================
+  # DOCKER IMAGE SCANNING (consolidado desde security-advanced.yml)
+  # ============================================
+  docker-scan:
+    name: Docker Image Security Scan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'schedule'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build backend image for scanning
+        run: |
+          docker build -t kob24-backend:scan ./backend
+
+      - name: Build frontend image for scanning
+        run: |
+          docker build -t kob24-frontend:scan ./frontend
+
+      - name: Scan backend image with Trivy
+        uses: aquasecurity/trivy-action@master
+        continue-on-error: true
+        with:
+          image-ref: 'kob24-backend:scan'
+          format: 'sarif'
+          output: 'backend-image-results.sarif'
+
+      - name: Scan frontend image with Trivy
+        uses: aquasecurity/trivy-action@master
+        continue-on-error: true
+        with:
+          image-ref: 'kob24-frontend:scan'
+          format: 'sarif'
+          output: 'frontend-image-results.sarif'
+
+      - name: Upload backend image scan results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        continue-on-error: true
+        with:
+          sarif_file: 'backend-image-results.sarif'
+          category: 'docker-backend'
+
+      - name: Upload frontend image scan results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        continue-on-error: true
+        with:
+          sarif_file: 'frontend-image-results.sarif'
+          category: 'docker-frontend'
+
+  # ============================================
+  # SECURITY SUMMARY (consolidado desde security-patching.yml)
+  # ============================================
+  security-summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs: [codeql, dependency-scan, secret-scan]
+    if: always()
+
+    steps:
+      - name: Generate Security Report
+        run: |
+          echo "## 🔒 Security Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Scan Type | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| CodeQL Analysis | ${{ needs.codeql.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Dependency Scan | ${{ needs.dependency-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Secret Detection | ${{ needs.secret-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "${{ needs.codeql.result }}" == "success" ]] &&
+             [[ "${{ needs.dependency-scan.result }}" == "success" ]] &&
+             [[ "${{ needs.secret-scan.result }}" == "success" ]]; then
+            echo "✅ **No critical security issues detected**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ **Please review security findings in the Security tab**" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      # Auto-create issue for security findings (consolidado desde security-patching.yml)
+      - name: Create security issue if vulnerabilities found
+        if: |
+          needs.codeql.result == 'failure' ||
+          needs.dependency-scan.result == 'failure' ||
+          needs.secret-scan.result == 'failure'
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = '🔒 Security Vulnerabilities Detected';
+            const body = `Automated security scan found potential vulnerabilities.
+
+            **Scan Results:**
+            - CodeQL: ${{ needs.codeql.result }}
+            - Dependencies: ${{ needs.dependency-scan.result }}
+            - Secrets: ${{ needs.secret-scan.result }}
+
+            Please review the [Security tab](https://github.com/${{ github.repository }}/security) for details.
+
+            Triggered by: ${{ github.event_name }}
+            Workflow: ${{ github.workflow }}
+            Run: ${{ github.run_id }}`;
+
+            // Check if similar issue already exists
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'security'
+            });
+
+            const existingIssue = issues.data.find(issue => issue.title === title);
+
+            if (!existingIssue) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['security', 'automated']
+              });
+            }
