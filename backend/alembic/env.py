@@ -23,6 +23,13 @@ from app.core.database import Base
 
 # Import all models so they are registered with Base.metadata
 from app.models.kobetsu_keiyakusho import KobetsuKeiyakusho, KobetsuEmployee
+from app.models.factory import Factory, FactoryLine, FactoryBreak, FactoryShift
+from app.models.company import Company, CompanyShift
+from app.models.plant import Plant
+from app.models.jigyosho import Jigyosho
+from app.models.employee import Employee
+from app.models.user import User
+from app.models.dispatch_assignment import DispatchAssignment
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

@@ -663,35 +663,6 @@ export const factoryApi = {
   deleteShift: async (shiftId: number): Promise<void> => {
     await apiClient.delete(`/factories/shifts/${shiftId}`)
   },
-
-  // ========================================
-  // COMPANY SHIFT FUNCTIONS (企業共通シフト管理)
-  // ========================================
-
-  // Get company shifts (inherited by all factories with use_company_shifts=true)
-  getCompanyShifts: async (companyId: number, includeInactive: boolean = false): Promise<CompanyShiftResponse[]> => {
-    const response = await apiClient.get<CompanyShiftResponse[]>(`/companies/${companyId}/shifts`, {
-      params: { include_inactive: includeInactive },
-    })
-    return response.data
-  },
-
-  // Create a new company shift
-  createCompanyShift: async (companyId: number, data: CompanyShiftCreate): Promise<CompanyShiftResponse> => {
-    const response = await apiClient.post<CompanyShiftResponse>(`/companies/${companyId}/shifts`, data)
-    return response.data
-  },
-
-  // Update a company shift
-  updateCompanyShift: async (shiftId: number, data: CompanyShiftUpdate): Promise<CompanyShiftResponse> => {
-    const response = await apiClient.put<CompanyShiftResponse>(`/companies/shifts/${shiftId}`, data)
-    return response.data
-  },
-
-  // Delete a company shift (soft delete)
-  deleteCompanyShift: async (shiftId: number): Promise<void> => {
-    await apiClient.delete(`/companies/shifts/${shiftId}`)
-  },
 }
 
 // Company API

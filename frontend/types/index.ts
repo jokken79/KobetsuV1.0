@@ -387,6 +387,10 @@ export interface FactoryShiftResponse {
   updated_at?: string
 }
 
+// Contract cycle enums (matching backend)
+export type ContractCycleType = 'monthly' | 'annual'
+export type CycleDayType = 'fixed' | 'month_end'
+
 export interface FactoryCreate {
   factory_id?: string
   company_name: string
@@ -394,9 +398,11 @@ export interface FactoryCreate {
   company_phone?: string
   company_fax?: string
   client_responsible_department?: string
+  client_responsible_position?: string
   client_responsible_name?: string
   client_responsible_phone?: string
   client_complaint_department?: string
+  client_complaint_position?: string
   client_complaint_name?: string
   client_complaint_phone?: string
   plant_name: string
@@ -425,6 +431,14 @@ export interface FactoryCreate {
   holiday_work_description?: string
   holiday_work_max_days_month?: number
   conflict_date?: string
+  // Contract cycle configuration
+  contract_cycle_type?: ContractCycleType
+  cycle_day_type?: CycleDayType
+  fiscal_year_end_month?: number  // 1-12
+  fiscal_year_end_day?: number    // 1-31
+  contract_renewal_days_before?: number  // 0-365
+  contract_start_date?: string
+  contract_end_date?: string
   time_unit_minutes?: number
   closing_date?: string
   payment_date?: string
@@ -446,9 +460,11 @@ export interface FactoryUpdate {
   company_phone?: string
   company_fax?: string
   client_responsible_department?: string
+  client_responsible_position?: string
   client_responsible_name?: string
   client_responsible_phone?: string
   client_complaint_department?: string
+  client_complaint_position?: string
   client_complaint_name?: string
   client_complaint_phone?: string
   plant_name?: string
@@ -477,6 +493,14 @@ export interface FactoryUpdate {
   holiday_work_description?: string
   holiday_work_max_days_month?: number
   conflict_date?: string
+  // Contract cycle configuration
+  contract_cycle_type?: ContractCycleType
+  cycle_day_type?: CycleDayType
+  fiscal_year_end_month?: number
+  fiscal_year_end_day?: number
+  contract_renewal_days_before?: number
+  contract_start_date?: string
+  contract_end_date?: string
   time_unit_minutes?: number
   closing_date?: string
   payment_date?: string
@@ -499,9 +523,11 @@ export interface FactoryResponse {
   company_phone?: string
   company_fax?: string
   client_responsible_department?: string
+  client_responsible_position?: string
   client_responsible_name?: string
   client_responsible_phone?: string
   client_complaint_department?: string
+  client_complaint_position?: string
   client_complaint_name?: string
   client_complaint_phone?: string
   plant_name: string
@@ -525,13 +551,28 @@ export interface FactoryResponse {
   overtime_max_hours_day?: number
   overtime_max_hours_month?: number
   overtime_max_hours_year?: number
+  overtime_special_max_month?: number
+  overtime_special_count_year?: number
   holiday_work_description?: string
   holiday_work_max_days_month?: number
   conflict_date?: string
+  // Contract cycle configuration
+  contract_cycle_type: ContractCycleType
+  cycle_day_type: CycleDayType
+  fiscal_year_end_month: number
+  fiscal_year_end_day: number
+  contract_renewal_days_before: number
+  contract_start_date?: string
+  contract_end_date?: string
+  time_unit_minutes?: number
   closing_date?: string
   payment_date?: string
   bank_account?: string
+  worker_closing_date?: string
+  worker_payment_date?: string
+  worker_calendar?: string
   agreement_period?: string
+  agreement_explainer?: string
   is_active: boolean
   notes?: string
   use_company_shifts: boolean
