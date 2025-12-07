@@ -185,22 +185,41 @@ def verify_token(token: str, token_type: str = "access") -> TokenData:
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)),
     db: Session = Depends(get_db)
 ) -> dict:
     """
     Get current authenticated user from JWT token.
 
+    When DEBUG=True (local development), bypasses authentication and returns a mock admin.
+    In production (DEBUG=False), requires valid JWT token.
+
     Args:
-        credentials: HTTP Bearer credentials
+        credentials: HTTP Bearer credentials (optional in DEBUG mode)
         db: Database session
 
     Returns:
         User dictionary with id, email, and role
 
     Raises:
-        HTTPException: If token is invalid or user not found
+        HTTPException: If token is invalid or user not found (production only)
     """
+    # DEBUG MODE BYPASS - For local development only
+    if settings.DEBUG:
+        return {
+            "id": 1,
+            "email": "dev@localhost",
+            "role": "admin"
+        }
+
+    # PRODUCTION: Require proper authentication
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     from app.models.user import User
 
     token = credentials.credentials
@@ -227,6 +246,10 @@ async def get_current_user(
         "email": user.email,
         "role": user.role
     }
+
+
+# Alias for backwards compatibility
+get_current_user_optional = get_current_user
 
 
 async def get_current_active_user(

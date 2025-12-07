@@ -313,7 +313,7 @@ export default function CompliancePage() {
         {[
           { id: 'overview', label: '概要' },
           { id: 'violations', label: '違反事項', count: latestReport?.summary?.violations_count },
-          { id: 'alerts', label: 'アラート', count: alertsData?.summary?.critical + alertsData?.summary?.high },
+          { id: 'alerts', label: 'アラート', count: (alertsData?.summary?.critical || 0) + (alertsData?.summary?.high || 0) },
         ].map(tab => (
           <button
             key={tab.id}

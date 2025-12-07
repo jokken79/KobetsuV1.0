@@ -109,15 +109,15 @@ async def app_stats(
 
         # Active contracts (current date between start and end)
         active_contracts = db.query(func.count(KobetsuKeiyakusho.id)).filter(
-            KobetsuKeiyakusho.contract_start <= datetime.now().date(),
-            KobetsuKeiyakusho.contract_end >= datetime.now().date()
+            KobetsuKeiyakusho.dispatch_start_date <= datetime.now().date(),
+            KobetsuKeiyakusho.dispatch_end_date >= datetime.now().date()
         ).scalar() or 0
 
         # Expiring soon (within 30 days)
         expiring_date = datetime.now().date() + timedelta(days=30)
         expiring_contracts = db.query(func.count(KobetsuKeiyakusho.id)).filter(
-            KobetsuKeiyakusho.contract_end <= expiring_date,
-            KobetsuKeiyakusho.contract_end >= datetime.now().date()
+            KobetsuKeiyakusho.dispatch_end_date <= expiring_date,
+            KobetsuKeiyakusho.dispatch_end_date >= datetime.now().date()
         ).scalar() or 0
 
         # New contracts in period
