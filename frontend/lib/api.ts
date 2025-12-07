@@ -1109,6 +1109,54 @@ export interface DocumentAvailability {
   }
 }
 
+export interface ComplianceViolation {
+  violation_id: string
+  severity: 'critical' | 'high' | 'medium' | 'low'
+  category: string
+  entity_type: string
+  entity_id: number
+  entity_name: string
+  violation_type: string
+  message: string
+  legal_reference?: string
+  remediation?: string
+  metadata?: Record<string, unknown>
+}
+
+export interface ComplianceAuditReport {
+  report_id: string
+  generated_at: string
+  period: {
+    start: string | null
+    end: string | null
+  }
+  scope: string
+  summary: {
+    total_entities_audited: number
+    compliance_score: number
+    violations_count: number
+    warnings_count: number
+    by_severity: {
+      critical: number
+      high: number
+      medium: number
+      low: number
+    }
+  }
+  contracts: {
+    audited: number
+    compliant: number
+    compliance_rate: number
+  }
+  factories: {
+    audited: number
+    compliant: number
+    compliance_rate: number
+  }
+  violations: ComplianceViolation[]
+  warnings: ComplianceViolation[]
+}
+
 export const complianceApi = {
   // Get dashboard stats (combined endpoint)
   getDashboard: async (): Promise<DashboardStats> => {
@@ -1124,25 +1172,25 @@ export const complianceApi = {
 
   // Get all alerts
   getAlerts: async (): Promise<{ summary: AlertCounts; critical: AlertItem[]; high: AlertItem[]; medium: AlertItem[]; low: AlertItem[] }> => {
-    const response = await apiClient.get('/compliance/alerts')
+    const response = await apiClient.get('/stats/compliance/alerts')
     return response.data
   },
 
   // Get daily summary
   getDailySummary: async (): Promise<{ counts: AlertCounts; highlights: Record<string, number>; top_priorities: AlertItem[] }> => {
-    const response = await apiClient.get('/compliance/alerts/daily-summary')
+    const response = await apiClient.get('/stats/compliance/alerts/daily-summary')
     return response.data
   },
 
   // Validate contract
   validateContract: async (contractId: number): Promise<{ is_valid: boolean; errors: unknown[]; warnings: unknown[]; compliance_score: number }> => {
-    const response = await apiClient.get(`/compliance/validate/contract/${contractId}`)
+    const response = await apiClient.get(`/kobetsu/${contractId}/validate`)
     return response.data
   },
 
-  // Run compliance audit
-  runAudit: async (params?: { factory_id?: number }): Promise<unknown> => {
-    const response = await apiClient.post('/compliance/compliance/audit', null, { params })
+  // Run full compliance audit
+  runAudit: async (params?: { factory_id?: number }): Promise<ComplianceAuditReport> => {
+    const response = await apiClient.post<ComplianceAuditReport>('/stats/compliance/audit', null, { params })
     return response.data
   },
 }

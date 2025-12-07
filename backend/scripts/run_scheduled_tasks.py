@@ -38,6 +38,7 @@ from app.core.database import SessionLocal
 from app.services.kobetsu_service import KobetsuService
 from app.services.alert_manager_service import AlertManagerService
 from app.services.compliance_checker_service import ComplianceCheckerService
+from app.services.notification_service import NotificationService, send_daily_alerts
 
 
 class ScheduledTaskRunner:
@@ -178,6 +179,52 @@ class ScheduledTaskRunner:
         finally:
             db.close()
 
+    def task_send_notifications(self) -> dict:
+        """Send alert notifications via email/Slack."""
+        self.log("Starting: Send notifications")
+
+        db = self.get_db()
+        try:
+            results = send_daily_alerts(db)
+
+            success_count = len([r for r in results if r.success])
+            fail_count = len([r for r in results if not r.success])
+
+            self.log(f"  Notifications sent: {success_count}")
+            self.log(f"  Notifications failed: {fail_count}")
+
+            result = {
+                "task": "send_notifications",
+                "success": fail_count == 0,
+                "sent": success_count,
+                "failed": fail_count,
+                "details": [
+                    {
+                        "channel": r.channel,
+                        "recipient": r.recipient,
+                        "success": r.success,
+                        "error": r.error
+                    } for r in results
+                ],
+                "timestamp": datetime.now().isoformat()
+            }
+
+            self.log("Completed: Send notifications")
+            return result
+
+        except Exception as e:
+            result = {
+                "task": "send_notifications",
+                "success": False,
+                "error": str(e),
+                "timestamp": datetime.now().isoformat()
+            }
+            self.log(f"ERROR: {e}")
+            return result
+
+        finally:
+            db.close()
+
     def task_full_compliance_audit(self) -> dict:
         """Run full compliance audit (weekly task)."""
         self.log("Starting: Full compliance audit")
@@ -241,6 +288,9 @@ class ScheduledTaskRunner:
         # 3. Quick compliance check
         results.append(self.task_compliance_check())
 
+        # 4. Send notifications (if configured)
+        results.append(self.task_send_notifications())
+
         self.log("=" * 60)
         self.log("Daily tasks completed")
         self.log("=" * 60)
@@ -283,7 +333,7 @@ def main():
     )
     group.add_argument(
         "--task",
-        choices=["update-expired", "alerts", "compliance", "audit"],
+        choices=["update-expired", "alerts", "compliance", "audit", "notify"],
         help="Run a specific task"
     )
 
@@ -315,6 +365,8 @@ def main():
             results = [runner.task_compliance_check()]
         elif args.task == "audit":
             results = [runner.task_full_compliance_audit()]
+        elif args.task == "notify":
+            results = [runner.task_send_notifications()]
 
         if args.json:
             print(json.dumps(results, indent=2, ensure_ascii=False))

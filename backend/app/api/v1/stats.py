@@ -4,7 +4,7 @@ Statistics Endpoints
 Provides system and application statistics.
 """
 import psutil
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Dict, Any, Optional
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
@@ -507,5 +507,76 @@ async def dashboard_stats(
         return {
             "timestamp": datetime.utcnow().isoformat(),
             "error": "Failed to retrieve dashboard statistics",
+            "details": str(e)
+        }
+
+
+@router.post("/compliance/audit")
+@limiter.limit("10 per minute")
+async def run_compliance_audit(
+    request: Request,
+    db: Session = Depends(get_db),
+    factory_id: Optional[int] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+):
+    """
+    Run a full compliance audit.
+
+    Returns detailed report with violations, warnings, and recommendations.
+    """
+    try:
+        checker = ComplianceCheckerService(db)
+        report = checker.run_full_audit(
+            start_date=start_date,
+            end_date=end_date,
+            factory_id=factory_id
+        )
+        return report.to_dict()
+    except Exception as e:
+        return {
+            "timestamp": datetime.utcnow().isoformat(),
+            "error": "Failed to run compliance audit",
+            "details": str(e)
+        }
+
+
+@router.get("/compliance/alerts")
+@limiter.limit("50 per minute")
+async def get_all_alerts(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Get all current alerts categorized by priority.
+    """
+    try:
+        alert_manager = AlertManagerService(db)
+        summary = alert_manager.get_all_alerts()
+        return summary.to_dict()
+    except Exception as e:
+        return {
+            "timestamp": datetime.utcnow().isoformat(),
+            "error": "Failed to retrieve alerts",
+            "details": str(e)
+        }
+
+
+@router.get("/compliance/alerts/daily-summary")
+@limiter.limit("50 per minute")
+async def get_daily_alert_summary(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Get daily alert summary for dashboard and notifications.
+    """
+    try:
+        alert_manager = AlertManagerService(db)
+        return alert_manager.get_daily_summary()
+    except Exception as e:
+        return {
+            "timestamp": datetime.utcnow().isoformat(),
+            "error": "Failed to retrieve daily summary",
             "details": str(e)
         }

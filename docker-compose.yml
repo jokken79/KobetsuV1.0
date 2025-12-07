@@ -157,6 +157,16 @@ services:
       REDIS_URL: redis://kob24-redis:6379/0
       SECRET_KEY: ${SECRET_KEY:-kob24_dev_secret_key_change_in_prod}
       TZ: Asia/Tokyo
+      # Email notifications (optional)
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-noreply@uns-kobetsu.local}
+      # Slack notifications (optional)
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      # Alert recipients (comma-separated emails)
+      ALERT_EMAIL_RECIPIENTS: ${ALERT_EMAIL_RECIPIENTS:-}
     volumes:
       - ./backend:/app
     depends_on:

@@ -106,6 +106,19 @@ class Settings(BaseSettings):
     EXCEL_TEMPLATE_DIR: str = "./templates/excel"  # Excel templates for document generation
     DEFAULT_DOCUMENT_FORMAT: str = "xlsx"  # Default output format: xlsx or pdf
 
+    # Email Notifications (SMTP)
+    SMTP_HOST: Optional[str] = None
+    SMTP_PORT: int = 587
+    SMTP_USER: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_FROM_EMAIL: Optional[str] = None
+
+    # Slack Notifications
+    SLACK_WEBHOOK_URL: Optional[str] = None
+
+    # Alert Recipients (comma-separated emails)
+    ALERT_EMAIL_RECIPIENTS: str = ""
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
