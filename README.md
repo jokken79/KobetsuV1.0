@@ -693,11 +693,19 @@ SSL_KEY_PATH=/path/to/key.pem
 |-----------|-------------|
 | [CLAUDE.md](CLAUDE.md) | Instrucciones para Claude AI |
 | [API.md](docs/API.md) | Referencia completa de API |
-| [DEVELOPMENT.md](docs/DEVELOPMENT.md) | Guía de desarrollo local |
-| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Guía de despliegue |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Arquitectura del sistema |
-| [EXCEL_MIGRATION.md](docs/EXCEL_MIGRATION.md) | Migración desde Excel |
-| [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Solución de problemas |
+| [LEGAL.md](docs/LEGAL.md) | Campos legales obligatorios |
+| [QUICK_START.md](docs/guides/QUICK_START.md) | Guía de inicio rápido |
+| [DOCKER_QUICK_START.md](docs/guides/DOCKER_QUICK_START.md) | Guía de despliegue Docker |
+| [EXCEL_TO_WEB_MIGRATION.md](docs/tech/EXCEL_TO_WEB_MIGRATION.md) | Migración desde Excel |
+| [COMO_IMPORTAR.md](docs/guides/COMO_IMPORTAR.md) | Guía de importación de datos |
+
+### Documentación Adicional
+
+| Categoría | Ubicación | Contenido |
+|-----------|-----------|-----------|
+| **Auditorías** | `docs/ai/audits/` | Análisis de arquitectura, seguridad, testing |
+| **Guías** | `docs/guides/` | Quick start, importación, sincronización |
+| **Técnico** | `docs/tech/` | Migración Excel, integraciones, templates |
 
 ---
 
@@ -786,7 +794,7 @@ Usamos [Semantic Versioning](https://semver.org/):
 - **v1.2.0** - Sistema de notificaciones
 - **v2.0.0** - (Próximo) Firma electrónica y portal cliente
 
-Ver [CHANGELOG.md](CHANGELOG.md) para historial completo.
+Ver `.claude/memory/project.md` para historial de desarrollo.
 
 ---
 
