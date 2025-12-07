@@ -164,7 +164,8 @@ async def get_contracts_by_employee(
 @router.delete("/delete-all", status_code=status.HTTP_200_OK)
 async def delete_all_contracts(
     db: Session = Depends(get_db),
-    # current_user: dict = Depends(get_current_user)  # TODO: Re-enable in production
+    current_user: dict = Depends(get_current_user),
+    _: bool = Depends(require_role("super_admin"))
 ):
     """Delete ALL kobetsu keiyakusho contracts from database. WARNING: This is a destructive operation!"""
     try:
