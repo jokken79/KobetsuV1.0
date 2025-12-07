@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, distinct
 
 from app.core.database import get_db
-from app.core.security import get_current_user
+from app.core.security import get_current_user, require_role
 from app.models.factory import Factory, FactoryLine, FactoryBreak, FactoryShift
 from app.models.company import Company, CompanyShift
 from app.models.employee import Employee
@@ -110,7 +110,8 @@ async def list_factories(
 @router.delete("/delete-all", status_code=status.HTTP_200_OK)
 async def delete_all_factories(
     db: Session = Depends(get_db),
-    # current_user: dict = Depends(get_current_user)  # TODO: Re-enable in production
+    current_user: dict = Depends(get_current_user),
+    _: bool = Depends(require_role("super_admin"))
 ):
     """Delete ALL factories and factory lines from database. WARNING: This is a destructive operation!"""
     try:

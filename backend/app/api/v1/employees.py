@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, or_
 
 from app.core.database import get_db
-from app.core.security import get_current_user
+from app.core.security import get_current_user, require_role
 from app.models.employee import Employee
 from app.models.factory import Factory, FactoryLine
 from app.schemas.employee import (
@@ -218,7 +218,8 @@ async def get_employees_for_contract(
 @router.delete("/delete-all", status_code=http_status.HTTP_200_OK)
 async def delete_all_employees(
     db: Session = Depends(get_db),
-    # current_user: dict = Depends(get_current_user)  # TODO: Re-enable in production
+    current_user: dict = Depends(get_current_user),
+    _: bool = Depends(require_role("super_admin"))
 ):
     """Delete ALL employees from database. WARNING: This is a destructive operation!"""
     try:
