@@ -1,0 +1,306 @@
+name: Agent Ecosystem Monitor
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  # Analyze changes and detect agent impact
+  analyze-agent-impact:
+    name: Analyze Agent Impact
+    runs-on: ubuntu-latest
+    outputs:
+      agents-affected: ${{ steps.analyze.outputs.agents-affected }}
+      needs-attention: ${{ steps.analyze.outputs.needs-attention }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Get changed files
+        id: changed-files
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+            HEAD="${{ github.event.pull_request.head.sha }}"
+          else
+            BASE="${{ github.event.before }}"
+            HEAD="${{ github.event.after }}"
+          fi
+
+          git diff --name-only $BASE $HEAD > changed_files.txt
+          echo "Changed files:"
+          cat changed_files.txt
+
+      - name: Analyze agent impact
+        id: analyze
+        run: |
+          python3 << 'EOF'
+          import json
+          import os
+          import re
+
+          # Read changed files
+          with open('changed_files.txt', 'r') as f:
+              changed_files = [line.strip() for line in f if line.strip()]
+
+          # Define agent-to-file mappings
+          AGENT_MAPPINGS = {
+              "contract-validator": {
+                  "files": ["backend/app/services/contract_validator_service.py", "backend/app/services/kobetsu_service.py"],
+                  "patterns": ["kobetsu", "contract", "validation", "16_fields"]
+              },
+              "compliance-checker": {
+                  "files": ["backend/app/services/compliance_checker_service.py"],
+                  "patterns": ["compliance", "audit", "労働者派遣法"]
+              },
+              "alert-manager": {
+                  "files": ["backend/app/services/alert_manager_service.py"],
+                  "patterns": ["alert", "notification", "expiring"]
+              },
+              "document-generator": {
+                  "files": ["backend/app/services/kobetsu_pdf_service.py", "backend/app/services/kobetsu_excel_generator.py"],
+                  "patterns": ["document", "pdf", "excel", "template"]
+              },
+              "sync-resolver": {
+                  "files": ["backend/app/services/sync_resolver_service.py", "backend/app/services/import_service.py"],
+                  "patterns": ["sync", "import", "excel", "conflict"]
+              },
+              "frontend": {
+                  "files": ["frontend/"],
+                  "patterns": ["component", "page", "ui"]
+              },
+              "backend": {
+                  "files": ["backend/app/api/", "backend/app/services/"],
+                  "patterns": ["endpoint", "service", "api"]
+              },
+              "database": {
+                  "files": ["backend/app/models/", "backend/alembic/"],
+                  "patterns": ["model", "migration", "schema"]
+              },
+              "security": {
+                  "files": ["backend/app/core/security.py"],
+                  "patterns": ["auth", "jwt", "password", "security"]
+              }
+          }
+
+          # Analyze affected agents
+          affected_agents = {}
+          for agent_name, config in AGENT_MAPPINGS.items():
+              agent_files = config["files"]
+              affected = False
+              matched_files = []
+
+              for changed_file in changed_files:
+                  for agent_file in agent_files:
+                      if changed_file.startswith(agent_file.rstrip('/')):
+                          affected = True
+                          matched_files.append(changed_file)
+                          break
+
+              if affected:
+                  affected_agents[agent_name] = {
+                      "status": "REVIEW_NEEDED",
+                      "matched_files": matched_files,
+                      "recommendation": f"Review .claude/agents/{agent_name}.md for potential updates"
+                  }
+
+          # Output results
+          needs_attention = len(affected_agents) > 0
+
+          # Write to outputs
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f"agents-affected={json.dumps(list(affected_agents.keys()))}\n")
+              f.write(f"needs-attention={'true' if needs_attention else 'false'}\n")
+
+          # Write detailed report
+          report = {
+              "affected_agents": affected_agents,
+              "total_changed_files": len(changed_files),
+              "needs_attention": needs_attention
+          }
+
+          with open('agent-impact-report.json', 'w') as f:
+              json.dump(report, f, indent=2)
+
+          print("\n" + "="*60)
+          print("AGENT IMPACT ANALYSIS REPORT")
+          print("="*60)
+
+          if affected_agents:
+              print(f"\n{len(affected_agents)} agents affected by this change:\n")
+              for agent, info in affected_agents.items():
+                  print(f"  - {agent}:")
+                  print(f"      Status: {info['status']}")
+                  print(f"      Files: {', '.join(info['matched_files'][:3])}")
+                  if len(info['matched_files']) > 3:
+                      print(f"      ... and {len(info['matched_files']) - 3} more")
+          else:
+              print("\nNo agents directly affected by this change.")
+
+          print("\n" + "="*60)
+          EOF
+
+      - name: Upload impact report
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-impact-report
+          path: agent-impact-report.json
+
+  # Post comment on PR with agent impact
+  comment-pr:
+    name: Post Agent Impact Comment
+    needs: analyze-agent-impact
+    if: github.event_name == 'pull_request' && needs.analyze-agent-impact.outputs.needs-attention == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download impact report
+        uses: actions/download-artifact@v4
+        with:
+          name: agent-impact-report
+
+      - name: Generate comment
+        id: comment
+        run: |
+          python3 << 'EOF'
+          import json
+
+          with open('agent-impact-report.json', 'r') as f:
+              report = json.load(f)
+
+          affected = report['affected_agents']
+
+          comment = "## Agent Ecosystem Impact Analysis\n\n"
+          comment += "This PR affects the following agents in the ecosystem:\n\n"
+
+          comment += "| Agent | Status | Action Required |\n"
+          comment += "|-------|--------|----------------|\n"
+
+          for agent_name, info in affected.items():
+              status_emoji = "" if info['status'] == 'REVIEW_NEEDED' else ""
+              comment += f"| `{agent_name}` | {status_emoji} {info['status']} | Review agent definition |\n"
+
+          comment += "\n### Recommendations\n\n"
+
+          for agent_name, info in affected.items():
+              comment += f"- **{agent_name}**: {info['recommendation']}\n"
+
+          comment += "\n---\n"
+          comment += "*Generated by Agent Ecosystem Monitor*"
+
+          # Escape for GitHub Actions
+          comment = comment.replace('\n', '%0A')
+
+          with open('pr-comment.txt', 'w') as f:
+              f.write(comment.replace('%0A', '\n'))
+
+          EOF
+
+      - name: Post PR comment
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const comment = fs.readFileSync('pr-comment.txt', 'utf8');
+
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+
+            const botComment = comments.find(c =>
+              c.user.type === 'Bot' &&
+              c.body.includes('Agent Ecosystem Impact Analysis')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: comment
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+            }
+
+  # Check agent definitions are up to date
+  validate-agents:
+    name: Validate Agent Definitions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate agent files
+        run: |
+          echo "Validating agent definitions..."
+
+          AGENTS_DIR=".claude/agents"
+          ERRORS=0
+
+          for agent_file in "$AGENTS_DIR"/*.md; do
+            if [ -f "$agent_file" ]; then
+              agent_name=$(basename "$agent_file" .md)
+              echo "Checking $agent_name..."
+
+              # Check YAML frontmatter exists
+              if ! head -1 "$agent_file" | grep -q "^---"; then
+                echo "  WARNING: Missing YAML frontmatter in $agent_file"
+                ERRORS=$((ERRORS + 1))
+              fi
+
+              # Check required sections
+              if ! grep -q "## " "$agent_file"; then
+                echo "  WARNING: No sections found in $agent_file"
+                ERRORS=$((ERRORS + 1))
+              fi
+
+              echo "  OK"
+            fi
+          done
+
+          echo ""
+          echo "Validation complete. $ERRORS warnings found."
+
+          # List all agents
+          echo ""
+          echo "Agents in ecosystem:"
+          ls -1 "$AGENTS_DIR"/*.md 2>/dev/null | xargs -n1 basename | sed 's/.md$//' | sort
+
+  # Daily compliance check (scheduled)
+  scheduled-compliance:
+    name: Scheduled Compliance Check
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run compliance summary
+        run: |
+          echo "Running scheduled compliance check..."
+          echo "This would trigger the compliance-checker agent in production."
+          echo ""
+          echo "Agent definitions found:"
+          ls -la .claude/agents/*.md 2>/dev/null || echo "No agents found"

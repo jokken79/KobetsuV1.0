@@ -805,6 +805,84 @@ Los 16 campos requeridos que todo agente de negocio debe conocer:
 
 ---
 
+## 11. Integración CI/CD
+
+### 11.1 GitHub Action: Agent Monitor
+
+El workflow `.github/workflows/agent-monitor.yml` ejecuta automáticamente en cada PR:
+
+```yaml
+# Detecta cambios y analiza impacto en agentes
+analyze-agent-impact:
+  - Extrae archivos modificados
+  - Mapea archivos a agentes afectados
+  - Genera reporte de impacto
+  - Comenta en el PR con recomendaciones
+```
+
+### 11.2 Script de Análisis
+
+`scripts/analyze_agent_impact.py` proporciona análisis detallado:
+
+```bash
+# Analizar cambios desde un commit
+python scripts/analyze_agent_impact.py --commit HEAD~1
+
+# Analizar desde un diff
+git diff main...feature-branch > changes.diff
+python scripts/analyze_agent_impact.py --diff changes.diff
+
+# Output en JSON
+python scripts/analyze_agent_impact.py --files file1.py file2.py --format json
+```
+
+### 11.3 Mapeo Agente-Archivos
+
+| Agente | Archivos Monitoreados |
+|--------|----------------------|
+| contract-validator | `services/contract_validator_service.py`, `services/kobetsu_service.py` |
+| compliance-checker | `services/compliance_checker_service.py`, `api/v1/compliance.py` |
+| alert-manager | `services/alert_manager_service.py`, `scripts/run_scheduled_tasks.py` |
+| document-generator | `services/*pdf*.py`, `services/*excel*.py`, `api/v1/documents.py` |
+| sync-resolver | `services/sync_resolver_service.py`, `api/v1/imports.py` |
+| frontend | `frontend/app/`, `frontend/components/` |
+| backend | `backend/app/api/`, `backend/app/services/` |
+| database | `backend/app/models/`, `backend/alembic/` |
+
+### 11.4 Flujo de Trabajo
+
+```
+                    ┌──────────────────┐
+                    │    Desarrollador  │
+                    │    crea PR        │
+                    └────────┬─────────┘
+                             │
+                             ▼
+                    ┌──────────────────┐
+                    │  GitHub Action   │
+                    │  agent-monitor   │
+                    └────────┬─────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              │              │              │
+              ▼              ▼              ▼
+        ┌──────────┐  ┌──────────┐  ┌──────────┐
+        │ Detectar │  │ Analizar │  │ Validar  │
+        │ archivos │  │ impacto  │  │ agentes  │
+        │ changed  │  │ agentes  │  │ .md      │
+        └────┬─────┘  └────┬─────┘  └────┬─────┘
+              │              │              │
+              └──────────────┼──────────────┘
+                             │
+                             ▼
+                    ┌──────────────────┐
+                    │  Comentario en   │
+                    │  PR con impacto  │
+                    └──────────────────┘
+```
+
+---
+
 **Fin del Documento**
 
 *Este documento debe ser actualizado cuando se implementen nuevos agentes o cuando cambien los requisitos del negocio.*
