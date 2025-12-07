@@ -27,6 +27,7 @@ from app.services.contract_logic_service import ContractLogicService, ContractVa
 from app.services.contract_date_service import ContractDateService
 from app.services.contract_renewal_service import ContractRenewalService
 from app.services.employee_compatibility_service import EmployeeCompatibilityValidator
+from app.services.contract_validator_service import ContractValidatorService
 from app.schemas.kobetsu_keiyakusho import (
     KobetsuKeiyakushoCreate,
     KobetsuKeiyakushoUpdate,
@@ -203,6 +204,7 @@ async def create_contract(
     data: KobetsuKeiyakushoCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
+    skip_validation: bool = Query(False, description="Skip 労働者派遣法第26条 validation (for drafts)"),
 ):
     """
     Create a new Kobetsu Keiyakusho (個別契約書).
@@ -217,7 +219,54 @@ async def create_contract(
     - 派遣料金 (dispatch fee)
     - 責任者情報 (manager information)
     - And more...
+
+    Set skip_validation=true to create drafts without full validation.
     """
+    # Validate contract data against 労働者派遣法第26条 requirements
+    if not skip_validation:
+        validator = ContractValidatorService(db)
+        contract_data = data.model_dump()
+        validation_result = validator.validate_contract_data(
+            data=contract_data,
+            factory_id=contract_data.get("factory_id"),
+            employee_ids=contract_data.get("employee_ids")
+        )
+
+        if not validation_result.is_valid:
+            # Return detailed validation errors
+            error_details = {
+                "message": "Contract validation failed (労働者派遣法第26条)",
+                "is_valid": False,
+                "errors": [
+                    {
+                        "field": e.field,
+                        "code": e.code,
+                        "message": e.message,
+                        "severity": e.severity,
+                        "japanese_name": e.japanese_name,
+                        "suggestion": e.suggestion
+                    }
+                    for e in validation_result.errors
+                ],
+                "warnings": [
+                    {
+                        "field": w.field,
+                        "code": w.code,
+                        "message": w.message,
+                        "severity": w.severity,
+                        "japanese_name": w.japanese_name
+                    }
+                    for w in validation_result.warnings
+                ],
+                "compliance_score": validation_result.compliance_score,
+                "fields_checked": validation_result.fields_checked,
+                "fields_valid": validation_result.fields_valid
+            }
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=error_details
+            )
+
     service = KobetsuService(db)
 
     try:
@@ -282,12 +331,15 @@ async def update_contract(
     data: KobetsuKeiyakushoUpdate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
+    validate_on_update: bool = Query(False, description="Run validation on update"),
 ):
     """
     Update an existing contract.
 
     Only modifiable fields can be updated. Some fields may be
     restricted based on contract status.
+
+    Set validate_on_update=true to validate after applying changes.
     """
     service = KobetsuService(db)
     contract = service.update(contract_id, data)
@@ -297,6 +349,25 @@ async def update_contract(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Contract with ID {contract_id} not found"
         )
+
+    # Optionally validate the updated contract
+    if validate_on_update:
+        validator = ContractValidatorService(db)
+        validation_result = validator.validate_existing_contract(contract_id)
+
+        if not validation_result.is_valid:
+            # Return the updated contract but with validation warnings
+            response = KobetsuKeiyakushoResponse.model_validate(contract)
+            # The frontend can check this header for validation issues
+            return {
+                **response.model_dump(),
+                "_validation": {
+                    "is_valid": False,
+                    "errors": [e.to_dict() for e in validation_result.errors],
+                    "warnings": [w.to_dict() for w in validation_result.warnings],
+                    "compliance_score": validation_result.compliance_score
+                }
+            }
 
     return KobetsuKeiyakushoResponse.model_validate(contract)
 

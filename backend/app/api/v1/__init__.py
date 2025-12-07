@@ -15,6 +15,7 @@ from .settings import router as settings_router
 from .endpoints.sync import router as sync_router
 from .health import router as health_router
 from .stats import router as stats_router
+from .compliance import router as compliance_router
 
 api_router = APIRouter()
 
@@ -83,4 +84,10 @@ api_router.include_router(
     stats_router,
     prefix="/stats",
     tags=["Statistics (統計)"]
+)
+
+api_router.include_router(
+    compliance_router,
+    prefix="/compliance",
+    tags=["Compliance & Validation (コンプライアンス)"]
 )
