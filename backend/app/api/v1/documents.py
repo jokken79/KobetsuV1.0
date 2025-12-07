@@ -1733,3 +1733,153 @@ async def get_excel_templates_status(
         "missing_templates": missing,
         "templates": templates,
     }
+
+
+# ========================================
+# TEMPLATE-BASED DOCUMENT GENERATION (NEW)
+# ========================================
+
+def _xlsm_response(
+    xlsm_bytes: bytes,
+    filename: str,
+    save_copy: bool = True,
+    subfolder: str = ""
+) -> Response:
+    """
+    Create Response for Excel macro-enabled documents (.xlsm).
+
+    Args:
+        xlsm_bytes: Excel document bytes
+        filename: Base filename (without extension)
+        save_copy: Whether to save a copy to disk
+        subfolder: Subfolder for saving
+
+    Returns:
+        FastAPI Response with correct content type for .xlsm
+    """
+    from urllib.parse import quote
+
+    def get_content_disposition(fname: str) -> str:
+        encoded = quote(fname, safe='')
+        return f"attachment; filename*=UTF-8''{encoded}"
+
+    full_filename = f"{filename}.xlsm"
+
+    if save_copy:
+        _save_document(xlsm_bytes, full_filename, subfolder)
+
+    return Response(
+        content=xlsm_bytes,
+        media_type="application/vnd.ms-excel.sheet.macroEnabled.12",
+        headers={
+            "Content-Disposition": get_content_disposition(full_filename)
+        }
+    )
+
+
+@router.get("/template/{contract_id}/kobetsu-keiyakusho")
+async def generate_template_kobetsu_keiyakusho(
+    contract_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Generate 個別契約書 using the Excel TEMPLATE method.
+
+    This method:
+    1. Loads the original Excel template (個別契約書高雄工業TEXPERT3.xlsm)
+    2. Fills specific cells with contract data
+    3. Preserves ALL formatting, borders, colors, fonts, and VBA macros
+    4. Returns a .xlsm file that looks identical to the original
+
+    Unlike the XML-based generator, this maintains 100% visual fidelity
+    to the original template.
+
+    Returns:
+        .xlsm file with contract data filled in
+    """
+    from app.services.kobetsu_template_service import KobetsuTemplateService
+
+    contract = db.query(KobetsuKeiyakusho).filter(
+        KobetsuKeiyakusho.id == contract_id
+    ).first()
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contract not found")
+
+    factory = contract.factory
+
+    try:
+        service = KobetsuTemplateService()
+        xlsm_bytes = service.generate_from_contract(contract, factory)
+    except FileNotFoundError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Template file not found: {str(e)}"
+        )
+    except Exception as e:
+        logger.exception("Failed to generate document from template")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Document generation failed: {str(e)}"
+        )
+
+    # Build filename
+    factory_name = (
+        factory.plant_name or factory.company_name if factory else ""
+    ).replace(" ", "_").replace("/", "_")
+    filename = f"個別契約書_{factory_name}_{contract.contract_number}"
+
+    return _xlsm_response(xlsm_bytes, filename, subfolder="contracts")
+
+
+@router.post("/template/generate-from-data")
+async def generate_template_from_data(
+    data: dict,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Generate 個別契約書 from raw data dictionary.
+
+    This endpoint allows generating a document without having a contract
+    in the database. Useful for previews or testing.
+
+    Request body should contain the cell mapping fields:
+    - client_company_name: 派遣先会社名
+    - client_address: 派遣先住所
+    - client_tel: 派遣先電話番号
+    - supervisor_dept: 指揮命令者部署
+    - supervisor_position: 指揮命令者役職
+    - supervisor_name: 指揮命令者氏名
+    - job_description: 業務内容
+    - dispatch_start_date: 派遣開始日 (YYYY-MM-DD)
+    - dispatch_end_date: 派遣終了日 (YYYY-MM-DD)
+    - headcount: 派遣人数
+    - work_days_text: 就業日テキスト
+    - hourly_rate: 時給単価
+    - contract_date: 契約締結日 (YYYY-MM-DD)
+    ... and more (see KobetsuTemplateService for full list)
+
+    Returns:
+        .xlsm file with data filled in
+    """
+    from app.services.kobetsu_template_service import KobetsuTemplateService
+
+    try:
+        service = KobetsuTemplateService()
+        xlsm_bytes = service.generate_from_data(data)
+    except FileNotFoundError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Template file not found: {str(e)}"
+        )
+    except Exception as e:
+        logger.exception("Failed to generate document from template")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Document generation failed: {str(e)}"
+        )
+
+    # Use provided filename or default
+    filename = data.get('filename', '個別契約書_preview')
+
+    return _xlsm_response(xlsm_bytes, filename, save_copy=False)
