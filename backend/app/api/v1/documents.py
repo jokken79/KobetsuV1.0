@@ -137,6 +137,156 @@ def _document_response(
 
 
 # ========================================
+# Document Types and Availability
+# ========================================
+
+class DocumentTypeInfo(BaseModel):
+    """Information about a document type."""
+    id: str
+    name_japanese: str
+    name_english: str
+    category: str
+    endpoint: str
+    available: bool = True
+    reason: str = ""
+
+
+DOCUMENT_TYPES = [
+    {"id": "kobetsu-keiyakusho", "name_japanese": "個別契約書", "name_english": "Individual Contract", "category": "contract", "endpoint": "/{contract_id}/kobetsu-keiyakusho"},
+    {"id": "jinzai-haken-kobetsu", "name_japanese": "人材派遣個別契約書", "name_english": "Dispatch Individual Contract", "category": "contract", "endpoint": "/{contract_id}/jinzai-haken-kobetsu"},
+    {"id": "shugyo-joken", "name_japanese": "就業条件明示書", "name_english": "Working Conditions", "category": "contract", "endpoint": "/{contract_id}/shugyo-joken"},
+    {"id": "haken-tsuchisho", "name_japanese": "派遣通知書", "name_english": "Dispatch Notification", "category": "notification", "endpoint": "/{contract_id}/haken-tsuchisho"},
+    {"id": "hakensaki-daicho", "name_japanese": "派遣先管理台帳", "name_english": "Destination Ledger", "category": "ledger", "endpoint": "/{contract_id}/hakensaki-daicho"},
+    {"id": "hakenmoto-daicho", "name_japanese": "派遣元管理台帳", "name_english": "Source Ledger", "category": "ledger", "endpoint": "/{contract_id}/hakenmoto-daicho"},
+    {"id": "haken-ji-taigu", "name_japanese": "派遣時の待遇情報明示書", "name_english": "Treatment Info at Dispatch", "category": "treatment", "endpoint": "/{contract_id}/haken-ji-taigu"},
+]
+
+DOCUMENT_TYPES_EMPLOYEE = [
+    {"id": "yatoire-ji-taigu", "name_japanese": "雇入れ時の待遇情報明示書", "name_english": "Treatment Info at Hiring", "category": "treatment", "endpoint": "/employee/{employee_id}/yatoire-ji-taigu"},
+]
+
+DOCUMENT_TYPES_FACTORY = [
+    {"id": "shugyo-jokyo", "name_japanese": "就業状況報告書", "name_english": "Employment Status Report", "category": "report", "endpoint": "/factory/{factory_id}/shugyo-jokyo"},
+]
+
+
+@router.get("/types")
+async def get_document_types(
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get list of all available document types.
+
+    Returns categorized list of document types that can be generated.
+    Useful for building UI document generation menus.
+    """
+    return {
+        "contract_documents": DOCUMENT_TYPES,
+        "employee_documents": DOCUMENT_TYPES_EMPLOYEE,
+        "factory_documents": DOCUMENT_TYPES_FACTORY,
+        "total_types": len(DOCUMENT_TYPES) + len(DOCUMENT_TYPES_EMPLOYEE) + len(DOCUMENT_TYPES_FACTORY)
+    }
+
+
+@router.get("/{contract_id}/available")
+async def get_available_documents(
+    contract_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get list of documents that can be generated for a specific contract.
+
+    Checks contract completeness and returns availability status for each document type.
+    """
+    # Get contract with factory and employees
+    contract = db.query(KobetsuKeiyakusho).filter(
+        KobetsuKeiyakusho.id == contract_id
+    ).first()
+
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contract not found")
+
+    # Get factory
+    factory = db.query(Factory).filter(Factory.id == contract.factory_id).first()
+
+    # Get employees
+    employee_ids = db.query(KobetsuEmployee.employee_id).filter(
+        KobetsuEmployee.kobetsu_keiyakusho_id == contract_id
+    ).all()
+    employee_count = len(employee_ids)
+
+    # Check availability for each document type
+    documents = []
+    for doc_type in DOCUMENT_TYPES:
+        available = True
+        reason = ""
+
+        # Check basic requirements
+        if not contract.work_content:
+            available = False
+            reason = "業務内容が未設定です"
+        elif not factory:
+            available = False
+            reason = "工場情報がありません"
+
+        # Some documents need employees
+        if doc_type["id"] in ["hakensaki-daicho", "hakenmoto-daicho", "haken-ji-taigu"]:
+            if employee_count == 0:
+                available = False
+                reason = "従業員が割り当てられていません"
+
+        documents.append({
+            **doc_type,
+            "available": available,
+            "reason": reason,
+            "endpoint": f"/api/v1/documents{doc_type['endpoint'].replace('{contract_id}', str(contract_id))}"
+        })
+
+    # Employee documents
+    employee_documents = []
+    for emp_id_tuple in employee_ids:
+        emp_id = emp_id_tuple[0]
+        emp = db.query(Employee).filter(Employee.id == emp_id).first()
+        if emp:
+            for doc_type in DOCUMENT_TYPES_EMPLOYEE:
+                employee_documents.append({
+                    **doc_type,
+                    "employee_id": emp_id,
+                    "employee_name": emp.full_name_kanji,
+                    "available": True,
+                    "reason": "",
+                    "endpoint": f"/api/v1/documents{doc_type['endpoint'].replace('{employee_id}', str(emp_id))}"
+                })
+
+    # Factory documents
+    factory_documents = []
+    if factory:
+        for doc_type in DOCUMENT_TYPES_FACTORY:
+            factory_documents.append({
+                **doc_type,
+                "factory_id": factory.id,
+                "factory_name": f"{factory.company_name} {factory.plant_name}",
+                "available": True,
+                "reason": "",
+                "endpoint": f"/api/v1/documents{doc_type['endpoint'].replace('{factory_id}', str(factory.id))}"
+            })
+
+    return {
+        "contract_id": contract_id,
+        "contract_number": contract.contract_number,
+        "contract_documents": documents,
+        "employee_documents": employee_documents,
+        "factory_documents": factory_documents,
+        "summary": {
+            "total_available": len([d for d in documents if d["available"]]) + len(employee_documents) + len(factory_documents),
+            "total_unavailable": len([d for d in documents if not d["available"]]),
+            "employee_count": employee_count
+        }
+    }
+
+
+# ========================================
 # Generate documents from contract ID
 # ========================================
 

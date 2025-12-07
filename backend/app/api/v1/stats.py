@@ -18,6 +18,8 @@ from app.models.employee import Employee
 from app.models.factory import Factory
 from app.models.company import Company
 from app.models.plant import Plant
+from app.services.compliance_checker_service import ComplianceCheckerService
+from app.services.alert_manager_service import AlertManagerService
 
 router = APIRouter()
 
@@ -368,5 +370,142 @@ async def usage_stats(
         return {
             "timestamp": datetime.utcnow().isoformat(),
             "error": "Failed to retrieve usage statistics",
+            "details": str(e)
+        }
+
+
+@router.get("/compliance")
+@limiter.limit("50 per minute")
+async def compliance_stats(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """
+    Get compliance statistics for the dashboard.
+
+    Returns:
+    - compliance_score: Overall system compliance (0-100)
+    - contract_compliance: Contract-specific compliance
+    - alert_counts: Alert counts by priority
+    - top_issues: Most urgent compliance issues
+    """
+    try:
+        # Get compliance summary
+        checker = ComplianceCheckerService(db)
+        compliance_summary = checker.get_compliance_summary()
+
+        # Get alert summary
+        alert_manager = AlertManagerService(db)
+        daily_summary = alert_manager.get_daily_summary()
+
+        return {
+            "timestamp": datetime.utcnow().isoformat(),
+            "compliance": {
+                "score": compliance_summary.get("quick_score", 0),
+                "status": compliance_summary.get("status", "UNKNOWN"),
+                "active_contracts": compliance_summary.get("active_contracts", 0),
+                "expired_but_active": compliance_summary.get("expired_but_active", 0),
+                "factories_missing_info": compliance_summary.get("factories_missing_info", 0)
+            },
+            "alerts": {
+                "critical": daily_summary.get("counts", {}).get("critical", 0),
+                "high": daily_summary.get("counts", {}).get("high", 0),
+                "medium": daily_summary.get("counts", {}).get("medium", 0),
+                "total_action_required": daily_summary.get("counts", {}).get("total_action_required", 0)
+            },
+            "highlights": daily_summary.get("highlights", {}),
+            "top_priorities": daily_summary.get("top_priorities", [])[:5]
+        }
+    except Exception as e:
+        return {
+            "timestamp": datetime.utcnow().isoformat(),
+            "error": "Failed to retrieve compliance statistics",
+            "details": str(e)
+        }
+
+
+@router.get("/dashboard")
+@limiter.limit("100 per minute")
+async def dashboard_stats(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """
+    Get all statistics for the main dashboard in one call.
+
+    Combines: app stats, compliance stats, and alerts.
+    Optimized to reduce multiple API calls from frontend.
+    """
+    try:
+        today = datetime.now().date()
+
+        # Basic counts
+        total_contracts = db.query(func.count(KobetsuKeiyakusho.id)).scalar() or 0
+        active_contracts = db.query(func.count(KobetsuKeiyakusho.id)).filter(
+            KobetsuKeiyakusho.status == 'active'
+        ).scalar() or 0
+        total_employees = db.query(func.count(Employee.id)).filter(
+            Employee.status == 'active'
+        ).scalar() or 0
+        total_factories = db.query(func.count(Factory.id)).filter(
+            Factory.is_active == True
+        ).scalar() or 0
+
+        # Expiring soon (7 days)
+        expiring_week = db.query(func.count(KobetsuKeiyakusho.id)).filter(
+            KobetsuKeiyakusho.dispatch_end_date.between(
+                today,
+                today + timedelta(days=7)
+            ),
+            KobetsuKeiyakusho.status == 'active'
+        ).scalar() or 0
+
+        # Expired but still active
+        expired_active = db.query(func.count(KobetsuKeiyakusho.id)).filter(
+            KobetsuKeiyakusho.dispatch_end_date < today,
+            KobetsuKeiyakusho.status == 'active'
+        ).scalar() or 0
+
+        # Compliance summary
+        checker = ComplianceCheckerService(db)
+        compliance = checker.get_compliance_summary()
+
+        # Alert summary
+        alert_manager = AlertManagerService(db)
+        alerts = alert_manager.get_daily_summary()
+
+        # Status breakdown
+        status_counts = db.query(
+            KobetsuKeiyakusho.status,
+            func.count(KobetsuKeiyakusho.id)
+        ).group_by(KobetsuKeiyakusho.status).all()
+
+        return {
+            "timestamp": datetime.utcnow().isoformat(),
+            "overview": {
+                "total_contracts": total_contracts,
+                "active_contracts": active_contracts,
+                "total_employees": total_employees,
+                "total_factories": total_factories
+            },
+            "attention_required": {
+                "expiring_this_week": expiring_week,
+                "expired_still_active": expired_active,
+                "critical_alerts": alerts.get("counts", {}).get("critical", 0),
+                "high_alerts": alerts.get("counts", {}).get("high", 0)
+            },
+            "compliance": {
+                "score": compliance.get("quick_score", 0),
+                "status": compliance.get("status", "UNKNOWN")
+            },
+            "contracts_by_status": {
+                status: count for status, count in status_counts
+            },
+            "top_priorities": alerts.get("top_priorities", [])[:5]
+        }
+    except Exception as e:
+        return {
+            "timestamp": datetime.utcnow().isoformat(),
+            "error": "Failed to retrieve dashboard statistics",
             "details": str(e)
         }
