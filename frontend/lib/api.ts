@@ -1019,4 +1019,152 @@ export const settingsApi = {
   },
 }
 
+// ========================================
+// COMPLIANCE & ALERTS API (コンプライアンス)
+// ========================================
+
+export interface ComplianceSummary {
+  score: number
+  status: 'COMPLIANT' | 'ISSUES_FOUND' | 'UNKNOWN'
+  active_contracts: number
+  expired_but_active: number
+  factories_missing_info: number
+}
+
+export interface AlertCounts {
+  critical: number
+  high: number
+  medium: number
+  total_action_required: number
+}
+
+export interface AlertItem {
+  type: string
+  priority: 'critical' | 'high' | 'medium' | 'low' | 'info'
+  title: string
+  message: string
+  entity_type: string
+  entity_id: number
+  entity_name: string
+  action_url: string
+  expires_in_days?: number
+  metadata?: Record<string, unknown>
+  created_at: string
+}
+
+export interface DashboardStats {
+  timestamp: string
+  overview: {
+    total_contracts: number
+    active_contracts: number
+    total_employees: number
+    total_factories: number
+  }
+  attention_required: {
+    expiring_this_week: number
+    expired_still_active: number
+    critical_alerts: number
+    high_alerts: number
+  }
+  compliance: {
+    score: number
+    status: string
+  }
+  contracts_by_status: Record<string, number>
+  top_priorities: AlertItem[]
+}
+
+export interface ComplianceStats {
+  timestamp: string
+  compliance: ComplianceSummary
+  alerts: AlertCounts
+  highlights: {
+    expiring_this_week?: number
+    unassigned_employees?: number
+    expired_contracts?: number
+  }
+  top_priorities: AlertItem[]
+}
+
+export interface DocumentTypeInfo {
+  id: string
+  name_japanese: string
+  name_english: string
+  category: string
+  endpoint: string
+  available: boolean
+  reason: string
+}
+
+export interface DocumentAvailability {
+  contract_id: number
+  contract_number: string
+  contract_documents: DocumentTypeInfo[]
+  employee_documents: (DocumentTypeInfo & { employee_id: number; employee_name: string })[]
+  factory_documents: (DocumentTypeInfo & { factory_id: number; factory_name: string })[]
+  summary: {
+    total_available: number
+    total_unavailable: number
+    employee_count: number
+  }
+}
+
+export const complianceApi = {
+  // Get dashboard stats (combined endpoint)
+  getDashboard: async (): Promise<DashboardStats> => {
+    const response = await apiClient.get<DashboardStats>('/stats/dashboard')
+    return response.data
+  },
+
+  // Get compliance stats
+  getCompliance: async (): Promise<ComplianceStats> => {
+    const response = await apiClient.get<ComplianceStats>('/stats/compliance')
+    return response.data
+  },
+
+  // Get all alerts
+  getAlerts: async (): Promise<{ summary: AlertCounts; critical: AlertItem[]; high: AlertItem[]; medium: AlertItem[]; low: AlertItem[] }> => {
+    const response = await apiClient.get('/compliance/alerts')
+    return response.data
+  },
+
+  // Get daily summary
+  getDailySummary: async (): Promise<{ counts: AlertCounts; highlights: Record<string, number>; top_priorities: AlertItem[] }> => {
+    const response = await apiClient.get('/compliance/alerts/daily-summary')
+    return response.data
+  },
+
+  // Validate contract
+  validateContract: async (contractId: number): Promise<{ is_valid: boolean; errors: unknown[]; warnings: unknown[]; compliance_score: number }> => {
+    const response = await apiClient.get(`/compliance/validate/contract/${contractId}`)
+    return response.data
+  },
+
+  // Run compliance audit
+  runAudit: async (params?: { factory_id?: number }): Promise<unknown> => {
+    const response = await apiClient.post('/compliance/compliance/audit', null, { params })
+    return response.data
+  },
+}
+
+export const documentsApi = {
+  // Get available document types
+  getTypes: async (): Promise<{ contract_documents: DocumentTypeInfo[]; employee_documents: DocumentTypeInfo[]; factory_documents: DocumentTypeInfo[] }> => {
+    const response = await apiClient.get('/documents/types')
+    return response.data
+  },
+
+  // Get available documents for a contract
+  getAvailable: async (contractId: number): Promise<DocumentAvailability> => {
+    const response = await apiClient.get<DocumentAvailability>(`/documents/${contractId}/available`)
+    return response.data
+  },
+
+  // Download document
+  downloadDocument: async (endpoint: string): Promise<Blob> => {
+    const response = await apiClient.get(endpoint, { responseType: 'blob' })
+    return response.data
+  },
+}
+
 export default apiClient

@@ -10,6 +10,7 @@ import {
   ContractsByMonthChart,
   ContractsByStatusChart,
   EmployeesByFactoryChart,
+  CompliancePanel,
 } from '@/components/dashboard'
 
 // SVG Icons
@@ -174,8 +175,12 @@ export default function HomePage() {
       {/* Statistics Cards */}
       <KobetsuStats stats={stats} isLoading={statsLoading} />
 
-      {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Compliance & Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Compliance Panel */}
+        <CompliancePanel className="lg:row-span-2" />
+
+        {/* Charts Section */}
         {/* Contracts by Month Chart */}
         <div className="card">
           <div className="card-header">
@@ -221,7 +226,7 @@ export default function HomePage() {
         </div>
 
         {/* Employees by Factory Chart */}
-        <div className="card lg:col-span-2">
+        <div className="card lg:col-span-3">
           <div className="card-header">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center text-purple-600">
