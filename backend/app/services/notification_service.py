@@ -45,7 +45,7 @@ class NotificationResult:
     recipient: str
     message_id: Optional[str] = None
     error: Optional[str] = None
-    sent_at: datetime = None
+    sent_at: Optional[datetime] = None
 
     def __post_init__(self):
         if self.sent_at is None:
