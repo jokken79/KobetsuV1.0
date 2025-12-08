@@ -42,7 +42,7 @@ async function createKainanFactory(token) {
     console.log(`   Department: ${factoryData.department}`);
     console.log(`   Line: ${factoryData.line}`);
 
-    const response = await axios.post(`${API_BASE}/factories`, factoryData, {
+    const response = await axios.post(`${API_BASE}/factories/`, factoryData, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
 

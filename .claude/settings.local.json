@@ -36,7 +36,10 @@
       "Bash(winpty docker exec kob24-frontend sh -c \"rm -rf /app/.next\")",
       "Bash(node verify-complete-system.js:*)",
       "Bash(python -m json.tool:*)",
-      "Bash(node create-kainan-contract.js:*)"
+      "Bash(node create-kainan-contract.js:*)",
+      "Bash(node create-kainan-factory.js:*)"
+      ”bash(*)"
+    
     ],
     "deny": [],
     "ask": []
