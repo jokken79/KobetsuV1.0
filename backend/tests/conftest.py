@@ -1,15 +1,19 @@
 """
 Pytest configuration and fixtures for backend tests.
+
+Uses PostgreSQL via testcontainers for realistic database testing.
+This ensures tests run against the same database engine as production,
+catching issues with JSONB, sequences, and PostgreSQL-specific syntax.
 """
+import os
 import pytest
-from datetime import date, time, timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Generator
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import StaticPool
 
 from app.main import app
 from app.core.database import Base, get_db
@@ -19,69 +23,145 @@ from app.models.factory import Factory, FactoryLine
 from app.models.employee import Employee
 
 
-# Test database URL (SQLite in-memory)
-SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+# ========================================
+# DATABASE CONFIGURATION
+# ========================================
 
-# Create test engine
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
+# Check if we should use testcontainers or an existing PostgreSQL instance
+USE_TESTCONTAINERS = os.environ.get("USE_TESTCONTAINERS", "true").lower() == "true"
+TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL", None)
 
-# Test session factory
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+def get_test_database_url():
+    """Get the database URL for tests."""
+    if TEST_DATABASE_URL:
+        # Use explicitly provided test database URL
+        return TEST_DATABASE_URL
+
+    if USE_TESTCONTAINERS:
+        # Use testcontainers - will be set up in pytest_configure
+        return None
+
+    # Fallback: Use the development database with a test schema
+    # This is less ideal but works when Docker is not available
+    return os.environ.get(
+        "DATABASE_URL",
+        "postgresql://kob24_admin:kob24_secure_2024@localhost:5424/kob24_db"
+    )
+
+
+# Global container reference (for testcontainers)
+_postgres_container = None
+_engine = None
+_TestingSessionLocal = None
+
+
+def pytest_configure(config):
+    """Set up PostgreSQL container before running tests."""
+    global _postgres_container, _engine, _TestingSessionLocal
+
+    if USE_TESTCONTAINERS and TEST_DATABASE_URL is None:
+        try:
+            from testcontainers.postgres import PostgresContainer
+
+            # Start PostgreSQL container
+            _postgres_container = PostgresContainer(
+                image="postgres:15-alpine",
+                user="test_user",
+                password="test_password",
+                dbname="test_db",
+            )
+            _postgres_container.start()
+
+            # Get connection URL
+            db_url = _postgres_container.get_connection_url()
+            print(f"\n🐘 PostgreSQL test container started: {db_url[:50]}...")
+
+        except ImportError:
+            print("\n⚠️  testcontainers not installed, falling back to SQLite")
+            db_url = "sqlite:///:memory:"
+        except Exception as e:
+            print(f"\n⚠️  Could not start testcontainers ({e}), using existing database")
+            db_url = get_test_database_url() or "sqlite:///:memory:"
+    else:
+        db_url = get_test_database_url() or "sqlite:///:memory:"
+
+    # Create engine based on database type
+    if "sqlite" in db_url:
+        from sqlalchemy.pool import StaticPool
+        _engine = create_engine(
+            db_url,
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+    else:
+        _engine = create_engine(
+            db_url,
+            pool_pre_ping=True,
+            pool_size=5,
+            max_overflow=10,
+        )
+
+    _TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
+
+
+def pytest_unconfigure(config):
+    """Clean up PostgreSQL container after tests."""
+    global _postgres_container
+
+    if _postgres_container is not None:
+        try:
+            _postgres_container.stop()
+            print("\n🐘 PostgreSQL test container stopped")
+        except Exception as e:
+            print(f"\n⚠️  Error stopping container: {e}")
+
+
+# ========================================
+# DATABASE FIXTURES
+# ========================================
 
 @pytest.fixture(scope="function")
 def db() -> Generator[Session, None, None]:
     """Create a fresh database for each test."""
-    # Create tables
-    Base.metadata.create_all(bind=engine)
+    global _engine, _TestingSessionLocal
+
+    if _engine is None:
+        pytest.skip("Database engine not initialized")
+
+    # Create all tables
+    Base.metadata.create_all(bind=_engine)
+
+    # Create contract_number_counters table if using PostgreSQL
+    # (This table is created by migration but we need it for tests)
+    if "postgresql" in str(_engine.url):
+        with _engine.connect() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS contract_number_counters (
+                    id SERIAL PRIMARY KEY,
+                    year_month VARCHAR(6) NOT NULL UNIQUE,
+                    last_sequence INTEGER NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+                    updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+                )
+            """))
+            conn.commit()
 
     # Create session
-    session = TestingSessionLocal()
+    session = _TestingSessionLocal()
 
     try:
         yield session
     finally:
         session.close()
-        # Drop tables after test
-        Base.metadata.drop_all(bind=engine)
+        # Drop all tables after test
+        Base.metadata.drop_all(bind=_engine)
 
-
-@pytest.fixture(scope="function")
-def test_user(db: Session) -> User:
-    """Create a test user in the database."""
-    user = User(
-        id=1,
-        email="test@example.com",
-        hashed_password=get_password_hash("testpassword"),
-        full_name="Test User",
-        role="admin",
-        is_active=True,
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
-
-
-@pytest.fixture(scope="function")
-def test_inactive_user(db: Session) -> User:
-    """Create an inactive test user."""
-    user = User(
-        id=2,
-        email="inactive@example.com",
-        hashed_password=get_password_hash("testpassword"),
-        full_name="Inactive User",
-        role="user",
-        is_active=False,
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
+        # Also drop the contract_number_counters table
+        if "postgresql" in str(_engine.url):
+            with _engine.connect() as conn:
+                conn.execute(text("DROP TABLE IF EXISTS contract_number_counters CASCADE"))
+                conn.commit()
 
 
 @pytest.fixture(scope="function")
@@ -102,6 +182,42 @@ def client(db: Session, test_user: User) -> Generator[TestClient, None, None]:
     app.dependency_overrides.clear()
 
 
+# ========================================
+# USER FIXTURES
+# ========================================
+
+@pytest.fixture(scope="function")
+def test_user(db: Session) -> User:
+    """Create a test user in the database."""
+    user = User(
+        email="test@example.com",
+        hashed_password=get_password_hash("testpassword"),
+        full_name="Test User",
+        role="admin",
+        is_active=True,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@pytest.fixture(scope="function")
+def test_inactive_user(db: Session) -> User:
+    """Create an inactive test user."""
+    user = User(
+        email="inactive@example.com",
+        hashed_password=get_password_hash("testpassword"),
+        full_name="Inactive User",
+        role="user",
+        is_active=False,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
 @pytest.fixture
 def auth_headers(test_user: User) -> dict:
     """Create authentication headers for test requests."""
@@ -113,18 +229,21 @@ def auth_headers(test_user: User) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
+# ========================================
+# FACTORY FIXTURES
+# ========================================
+
 @pytest.fixture
 def test_factory(db: Session) -> Factory:
     """Create a test factory."""
     factory = Factory(
-        id=1,
         factory_id="テスト株式会社__本社工場",
         company_name="テスト株式会社",
         plant_name="本社工場",
         company_address="東京都千代田区丸の内1-1-1",
         plant_address="東京都千代田区丸の内1-1-1",
         company_phone="03-1234-5678",
-        conflict_date=date(2024, 1, 1),
+        conflict_date=date(2026, 1, 1),  # Future date
         is_active=True,
     )
     db.add(factory)
@@ -137,7 +256,6 @@ def test_factory(db: Session) -> Factory:
 def test_factory_line(db: Session, test_factory: Factory) -> FactoryLine:
     """Create a test factory line."""
     line = FactoryLine(
-        id=1,
         factory_id=test_factory.id,
         line_id="LINE001",
         department="製造部",
@@ -156,11 +274,14 @@ def test_factory_line(db: Session, test_factory: Factory) -> FactoryLine:
     return line
 
 
+# ========================================
+# EMPLOYEE FIXTURES
+# ========================================
+
 @pytest.fixture
 def test_employee(db: Session, test_factory: Factory) -> Employee:
     """Create a test employee."""
     employee = Employee(
-        id=1,
         employee_number="EMP001",
         full_name_kanji="山田太郎",
         full_name_kana="ヤマダタロウ",
@@ -184,7 +305,6 @@ def test_employee(db: Session, test_factory: Factory) -> Employee:
 def test_employee_2(db: Session, test_factory: Factory) -> Employee:
     """Create a second test employee."""
     employee = Employee(
-        id=2,
         employee_number="EMP002",
         full_name_kanji="佐藤花子",
         full_name_kana="サトウハナコ",
@@ -204,12 +324,16 @@ def test_employee_2(db: Session, test_factory: Factory) -> Employee:
     return employee
 
 
+# ========================================
+# CONTRACT DATA FIXTURES
+# ========================================
+
 @pytest.fixture
-def sample_contract_data() -> dict:
+def sample_contract_data(test_factory: Factory, test_employee: Employee, test_employee_2: Employee) -> dict:
     """Sample contract data for testing."""
     return {
-        "factory_id": 1,
-        "employee_ids": [1, 2],
+        "factory_id": test_factory.id,
+        "employee_ids": [test_employee.id, test_employee_2.id],
         "contract_date": str(date.today()),
         "dispatch_start_date": "2024-12-01",
         "dispatch_end_date": "2025-11-30",
@@ -264,3 +388,14 @@ def sample_update_data() -> dict:
         "hourly_rate": 1600,
         "notes": "テスト更新",
     }
+
+
+# ========================================
+# UTILITY FIXTURES
+# ========================================
+
+@pytest.fixture
+def db_is_postgresql(db: Session) -> bool:
+    """Check if the test database is PostgreSQL."""
+    global _engine
+    return _engine is not None and "postgresql" in str(_engine.url)

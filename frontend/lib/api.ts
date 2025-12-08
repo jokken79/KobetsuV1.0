@@ -42,6 +42,10 @@ import type {
   EmployeeForContract,
   EmployeeStats,
   EmployeeListParams,
+  ExpiringContractAlert,
+  ConflictDateAlert,
+  CompanyResponse,
+  CompanyListItem,
 } from '@/types'
 
 // Use relative path for API calls - Next.js rewrites proxy them to the backend
@@ -432,32 +436,16 @@ export const kobetsuApi = {
   },
 
   // Get alerts for expiring contracts
-  getExpiringContractsAlerts: async (days?: number): Promise<{
-    id: number
-    contract_number: string
-    worksite_name: string
-    dispatch_end_date: string
-    days_remaining: number
-    status: string
-    employee_count: number
-  }[]> => {
-    const response = await apiClient.get('/kobetsu/alerts/expiring-contracts', {
+  getExpiringContractsAlerts: async (days?: number): Promise<ExpiringContractAlert[]> => {
+    const response = await apiClient.get<ExpiringContractAlert[]>('/kobetsu/alerts/expiring-contracts', {
       params: { days },
     })
     return response.data
   },
 
   // Get alerts for factories near conflict date
-  getConflictDateAlerts: async (days?: number): Promise<{
-    factory_id: number
-    company_name: string
-    plant_name: string
-    conflict_date: string
-    days_remaining: number
-    active_contracts: number
-    total_employees: number
-  }[]> => {
-    const response = await apiClient.get('/kobetsu/alerts/conflict-dates', {
+  getConflictDateAlerts: async (days?: number): Promise<ConflictDateAlert[]> => {
+    const response = await apiClient.get<ConflictDateAlert[]>('/kobetsu/alerts/conflict-dates', {
       params: { days },
     })
     return response.data
@@ -702,14 +690,14 @@ export const companyApi = {
     limit?: number
     search?: string
     is_active?: boolean
-  }): Promise<any[]> => {
-    const response = await apiClient.get('/companies', { params })
+  }): Promise<CompanyListItem[]> => {
+    const response = await apiClient.get<CompanyListItem[]>('/companies', { params })
     return response.data
   },
 
   // Get single company
-  getById: async (companyId: number): Promise<any> => {
-    const response = await apiClient.get(`/companies/${companyId}`)
+  getById: async (companyId: number): Promise<CompanyResponse> => {
+    const response = await apiClient.get<CompanyResponse>(`/companies/${companyId}`)
     return response.data
   },
 

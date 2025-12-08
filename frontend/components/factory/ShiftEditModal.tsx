@@ -1,12 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import type { FactoryShiftResponse } from '@/types'
+import type { FactoryShiftResponse, FactoryShiftCreate } from '@/types'
 
 interface ShiftEditModalProps {
   shift: FactoryShiftResponse | null
   factoryId: number
-  onSave: (data: any) => Promise<void>
+  onSave: (data: FactoryShiftCreate) => Promise<void>
   onClose: () => void
 }
 

@@ -5,7 +5,7 @@
 import { test, expect, Page } from '@playwright/test'
 
 // Configuración
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3010'
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3024'
 const TEST_EMAIL = 'admin@example.com'
 const TEST_PASSWORD = 'admin123'
 

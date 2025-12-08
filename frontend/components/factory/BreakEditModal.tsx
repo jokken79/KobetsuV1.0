@@ -1,12 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import type { FactoryBreakResponse } from '@/types'
+import type { FactoryBreakResponse, FactoryBreakCreate } from '@/types'
 
 interface BreakEditModalProps {
   breakItem: FactoryBreakResponse | null
   factoryId: number
-  onSave: (data: any) => Promise<void>
+  onSave: (data: FactoryBreakCreate) => Promise<void>
   onClose: () => void
 }
 

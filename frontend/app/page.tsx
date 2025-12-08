@@ -12,6 +12,7 @@ import {
   EmployeesByFactoryChart,
   CompliancePanel,
 } from '@/components/dashboard'
+import type { ConflictDateAlert, ExpiringContractAlert, KobetsuListItem } from '@/types'
 
 // SVG Icons
 const Icons = {
@@ -252,7 +253,7 @@ export default function HomePage() {
       {(conflictAlerts?.length > 0 || expiringAlerts?.length > 0) && (
         <div className="space-y-3">
           {/* Conflict Date Warning */}
-          {conflictAlerts?.filter((a: any) => a.days_remaining <= 30).map((alert: any) => (
+          {conflictAlerts?.filter((a: ConflictDateAlert) => a.days_remaining <= 30).map((alert: ConflictDateAlert) => (
             <div
               key={alert.factory_id}
               className="alert-error animate-slide-up"
@@ -279,7 +280,7 @@ export default function HomePage() {
           ))}
 
           {/* Expiring Contract Warning */}
-          {expiringAlerts?.filter((a: any) => a.days_remaining <= 7).map((alert: any) => (
+          {expiringAlerts?.filter((a: ExpiringContractAlert) => a.days_remaining <= 7).map((alert: ExpiringContractAlert) => (
             <div
               key={alert.id}
               className="alert-warning animate-slide-up"
@@ -383,7 +384,7 @@ export default function HomePage() {
           <div className="card-body">
             {expiringContracts?.length ? (
               <ul className="divide-y divide-gray-100">
-                {expiringContracts.map((contract: any) => {
+                {expiringContracts.map((contract: KobetsuListItem) => {
                   const daysLeft = Math.ceil(
                     (new Date(contract.dispatch_end_date).getTime() - new Date().getTime()) /
                     (1000 * 60 * 60 * 24)
