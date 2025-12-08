@@ -46,7 +46,7 @@ class ComplianceAgent(BaseAgent):
                 "field": "hourly_rate",
                 "message": f"Hourly rate ({hourly_rate} JPY) is below Aichi minimum wage ({self.MINIMUM_WAGE_AICHI} JPY)."
             })
-
+        
         # 2. Overtime Rate Check
         overtime_rate = self._get_decimal(contract_data.get("overtime_rate"))
         if hourly_rate and overtime_rate:

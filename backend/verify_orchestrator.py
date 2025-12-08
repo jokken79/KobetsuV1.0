@@ -49,10 +49,12 @@ def test_orchestrator():
         f.write(f"DEBUG RATE: {row.get('hourly_rate')} (Type: {type(row.get('hourly_rate'))})\n")
         f.write(f"DEBUG AUDIT: {row.get('_audit')}\n")
         
-        if not row["is_valid"] and any("MIN_WAGE_VIOLATION" in str(e) for e in row.get("errors", [])):
+        # Check _audit for the raw error code
+        audit_errors = row.get("_audit", {}).get("errors", [])
+        if not row["is_valid"] and any(e.get("code") == "MIN_WAGE_VIOLATION" for e in audit_errors):
             f.write("PASS: Orchestrator correctly coordinated DataAnalyst (parse) and Compliance (audit).\n")
         else:
-            f.write(f"FAIL: Expected validation error for low wage. Got: {row}\n")
+            f.write(f"FAIL: Expected validation error for low wage. Got validity: {row['is_valid']}, Audit Errors: {audit_errors}\n")
 
 if __name__ == "__main__":
     test_orchestrator()
