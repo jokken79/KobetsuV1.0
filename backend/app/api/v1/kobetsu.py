@@ -450,40 +450,6 @@ async def activate_contract(
     return KobetsuKeiyakushoResponse.model_validate(contract)
 
 
-@router.post("/{contract_id}/renew", response_model=KobetsuKeiyakushoResponse)
-async def renew_contract(
-    contract_id: int,
-    new_end_date: date = Query(..., description="New dispatch end date"),
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """
-    Renew a contract with a new end date.
-
-    Creates a new contract based on the original, with:
-    - New contract number
-    - Start date = original end date + 1 day
-    - End date = specified new_end_date
-    - Status = 'draft'
-
-    Original contract status is changed to 'renewed'.
-    """
-    service = KobetsuService(db)
-    contract = service.renew(
-        contract_id,
-        new_end_date=new_end_date,
-        created_by=current_user.get("id")
-    )
-
-    if not contract:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot renew: contract not found"
-        )
-
-    return KobetsuKeiyakushoResponse.model_validate(contract)
-
-
 @router.post("/{contract_id}/duplicate", response_model=KobetsuKeiyakushoResponse)
 async def duplicate_contract(
     contract_id: int,
@@ -1502,19 +1468,20 @@ async def get_renewal_info(
         raise HTTPException(status_code=404, detail=str(e))
 
 
-@router.post("/{kobetsu_id}/renew")
+@router.post("/{kobetsu_id}/renew", response_model=KobetsuKeiyakushoResponse)
 async def renew_contract(
     kobetsu_id: int,
+    new_end_date: Optional[date] = Query(None, description="Explicit end date (optional). If not provided, calculated from factory cycle."),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """
-    Generate next contract based on factory cycle configuration.
+    Renew a contract with optional explicit end date or auto-calculated dates.
 
     This endpoint:
     1. Retrieves the current contract
     2. Validates all employees are still active
-    3. Calculates new contract dates based on factory cycle rules
+    3. Calculates new contract dates (from factory cycle or explicit new_end_date)
     4. Creates a new contract with status='draft'
     5. Links to previous contract for audit trail
 
@@ -1532,6 +1499,11 @@ async def renew_contract(
     - pdf_path (reset)
     - signatures/approvals
 
+    Args:
+        kobetsu_id: ID of contract to renew
+        new_end_date: Optional explicit end date. If provided, start date = original end date + 1 day.
+                     If not provided, dates are calculated from factory cycle configuration.
+
     Returns:
         New KobetsuKeiyakusho contract with status='draft'
 
@@ -1542,6 +1514,7 @@ async def renew_contract(
 
     Example:
         POST /api/v1/kobetsu/42/renew
+        POST /api/v1/kobetsu/42/renew?new_end_date=2025-12-31
 
         Response:
         {
@@ -1558,7 +1531,8 @@ async def renew_contract(
         renewal_service = ContractRenewalService(db)
         renewed_contract = renewal_service.renew_contract(
             current_contract_id=kobetsu_id,
-            created_by_id=current_user.get('id')
+            created_by_id=current_user.get('id'),
+            new_end_date=new_end_date
         )
         return KobetsuKeiyakushoResponse.model_validate(renewed_contract)
     except ValueError as e:
@@ -1630,47 +1604,73 @@ async def get_factory_cycle_info(
 
 @router.get("/export/csv")
 async def export_contracts_csv(
-    status: Optional[str] = Query(None, description="Filter by status"),
+    contract_status: Optional[str] = Query(None, alias="status", description="Filter by status"),
     factory_id: Optional[int] = Query(None, description="Filter by factory"),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """
-    Export contracts to CSV format.
+    Export contracts to CSV format using streaming response.
+
+    This endpoint uses chunked streaming to handle large datasets efficiently
+    without loading all records into memory at once.
     """
+    from fastapi.responses import StreamingResponse
+
     service = KobetsuService(db)
-    contracts, _ = service.get_list(
-        skip=0,
-        limit=10000,  # Max export
-        status=status,
-        factory_id=factory_id,
-    )
 
-    # Generate CSV content
-    output = io.StringIO()
-    writer = csv.writer(output)
+    def generate_csv():
+        """Generator function for streaming CSV content."""
+        # Create a StringIO buffer for each batch
+        output = io.StringIO()
+        writer = csv.writer(output)
 
-    # Header
-    writer.writerow([
-        "契約番号", "派遣先名", "開始日", "終了日", "労働者数", "ステータス", "作成日"
-    ])
-
-    # Data rows
-    for c in contracts:
+        # Write header
         writer.writerow([
-            c.contract_number,
-            c.worksite_name,
-            c.dispatch_start_date.isoformat(),
-            c.dispatch_end_date.isoformat(),
-            c.number_of_workers,
-            c.status,
-            c.created_at.isoformat(),
+            "契約番号", "派遣先名", "開始日", "終了日", "労働者数", "ステータス", "作成日"
         ])
+        yield output.getvalue()
+        output.seek(0)
+        output.truncate(0)
 
-    output.seek(0)
+        # Stream data in batches to prevent memory issues
+        batch_size = 100
+        offset = 0
 
-    return Response(
-        content=output.getvalue(),
+        while True:
+            contracts, total = service.get_list(
+                skip=offset,
+                limit=batch_size,
+                status=contract_status,
+                factory_id=factory_id,
+            )
+
+            if not contracts:
+                break
+
+            for c in contracts:
+                writer.writerow([
+                    c.contract_number,
+                    c.worksite_name,
+                    c.dispatch_start_date.isoformat(),
+                    c.dispatch_end_date.isoformat(),
+                    c.number_of_workers,
+                    c.status,
+                    c.created_at.isoformat(),
+                ])
+
+            yield output.getvalue()
+            output.seek(0)
+            output.truncate(0)
+
+            offset += batch_size
+
+            # Safety limit: max 100,000 records
+            if offset >= 100000:
+                break
+
+    return StreamingResponse(
+        generate_csv(),
         media_type="text/csv",
         headers={
             "Content-Disposition": "attachment; filename=kobetsu_contracts.csv"

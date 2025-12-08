@@ -7,8 +7,9 @@ from datetime import date, datetime, timedelta, timezone
 from typing import List, Optional, Dict, Any, Tuple
 from decimal import Decimal
 
-from sqlalchemy import func, and_, or_
+from sqlalchemy import func, and_, or_, text
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.exc import IntegrityError
 
 from app.models.kobetsu_keiyakusho import KobetsuKeiyakusho, KobetsuEmployee
 from app.schemas.kobetsu_keiyakusho import (
@@ -26,30 +27,61 @@ class KobetsuService:
     def __init__(self, db: Session):
         self.db = db
 
-    def generate_contract_number(self) -> str:
+    def generate_contract_number(self, max_retries: int = 3) -> str:
         """
-        Generate a unique contract number.
+        Generate a unique contract number atomically using row-level locking.
         Format: KOB-YYYYMM-XXXX (e.g., KOB-202411-0001)
+
+        This method uses a counter table with FOR UPDATE locking to prevent
+        race conditions when multiple contracts are created simultaneously.
+
+        Args:
+            max_retries: Number of retry attempts on deadlock/conflict
+
+        Returns:
+            Unique contract number string
+
+        Raises:
+            RuntimeError: If unable to generate number after max retries
         """
         today = datetime.now()
-        prefix = f"KOB-{today.strftime('%Y%m')}-"
+        year_month = today.strftime('%Y%m')
+        prefix = f"KOB-{year_month}-"
 
-        # Get the latest contract number for this month
-        latest = (
-            self.db.query(KobetsuKeiyakusho)
-            .filter(KobetsuKeiyakusho.contract_number.like(f"{prefix}%"))
-            .order_by(KobetsuKeiyakusho.contract_number.desc())
-            .first()
-        )
+        for attempt in range(max_retries):
+            try:
+                # Try to get and lock the counter row, or create if not exists
+                # Using raw SQL for FOR UPDATE NOWAIT to prevent deadlocks
+                result = self.db.execute(
+                    text("""
+                        INSERT INTO contract_number_counters (year_month, last_sequence, created_at, updated_at)
+                        VALUES (:year_month, 1, NOW(), NOW())
+                        ON CONFLICT (year_month) DO UPDATE SET
+                            last_sequence = contract_number_counters.last_sequence + 1,
+                            updated_at = NOW()
+                        RETURNING last_sequence
+                    """),
+                    {"year_month": year_month}
+                )
 
-        if latest:
-            # Extract the sequence number and increment
-            current_seq = int(latest.contract_number.split("-")[-1])
-            next_seq = current_seq + 1
-        else:
-            next_seq = 1
+                next_seq = result.scalar()
+                contract_number = f"{prefix}{next_seq:04d}"
 
-        return f"{prefix}{next_seq:04d}"
+                logger.debug(f"Generated contract number: {contract_number}")
+                return contract_number
+
+            except IntegrityError as e:
+                # Unique constraint violation - another transaction got the same number
+                self.db.rollback()
+                logger.warning(f"Contract number generation conflict (attempt {attempt + 1}): {e}")
+                if attempt == max_retries - 1:
+                    raise RuntimeError(
+                        f"Failed to generate unique contract number after {max_retries} attempts"
+                    ) from e
+                continue
+
+        # Fallback: This should never be reached due to the raise in the loop
+        raise RuntimeError("Unexpected error in contract number generation")
 
     def create(
         self,

@@ -61,7 +61,8 @@ class ContractRenewalService:
     def renew_contract(
         self,
         current_contract_id: int,
-        created_by_id: int
+        created_by_id: int,
+        new_end_date: datetime.date = None
     ) -> KobetsuKeiyakusho:
         """
         Generate next contract based on current contract and factory cycle.
@@ -69,7 +70,7 @@ class ContractRenewalService:
         This method:
         1. Validates current contract exists
         2. Validates all employees are still active
-        3. Calculates new contract dates based on factory cycle
+        3. Calculates new contract dates based on factory cycle (or uses provided new_end_date)
         4. Copies only whitelisted fields from current contract
         5. Creates new contract with status='draft'
         6. Links to previous contract for audit trail
@@ -77,6 +78,7 @@ class ContractRenewalService:
         Args:
             current_contract_id: ID of contract to renew
             created_by_id: ID of user creating renewal
+            new_end_date: Optional explicit end date. If not provided, calculated from factory cycle.
 
         Returns:
             New KobetsuKeiyakusho contract
@@ -84,6 +86,8 @@ class ContractRenewalService:
         Raises:
             ValueError: If contract not found, employee resigned, or validation fails
         """
+        from datetime import timedelta
+
         # Get current contract
         current_contract = self.db.query(KobetsuKeiyakusho).filter(
             KobetsuKeiyakusho.id == current_contract_id
@@ -104,7 +108,13 @@ class ContractRenewalService:
             raise ValueError(f"Cannot renew: employees have resigned: {names}")
 
         # Calculate new contract dates
-        new_start_date, new_end_date = self.date_service.calculate_renewal_dates(current_contract_id)
+        if new_end_date:
+            # Use explicit end date provided by user
+            # Start date is day after current contract ends
+            new_start_date = current_contract.dispatch_end_date + timedelta(days=1)
+        else:
+            # Auto-calculate based on factory cycle
+            new_start_date, new_end_date = self.date_service.calculate_renewal_dates(current_contract_id)
 
         # Build renewal data from whitelisted fields
         renewal_data_dict = {}
