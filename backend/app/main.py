@@ -15,7 +15,7 @@ from app.core.config import settings
 from app.core.database import check_db_connection
 # from app.core.rate_limit import limiter, rate_limit_exceeded_handler
 from app.api.v1 import api_router
-
+from app.api.v1 import agents 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -49,6 +49,7 @@ app = FastAPI(
 - 📊 Dashboard with contract statistics
 - 📄 Generate PDF/DOCX contracts
 - 🔒 JWT-based authentication
+- 🤖 Agent Ecosystem (Data Analysis, Compliance, Orchestration)
 
 ### Legal Compliance
 This system ensures compliance with Japan's Worker Dispatch Law (労働者派遣法),
@@ -92,6 +93,8 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # Include API router
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+# Include Agents Router
+app.include_router(agents.router, prefix=f"{settings.API_V1_PREFIX}/agents", tags=["agents"])
 
 
 # Root endpoint

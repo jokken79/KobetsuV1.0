@@ -14,6 +14,7 @@ from app.core.security import get_current_user
 from app.core.rate_limit import limiter, RateLimits
 from app.services.import_service import ImportService
 from app.services.sync_resolver_service import SyncResolverService, ConflictStrategy
+from app.agents.data_analyst_agent import DataAnalystAgent
 
 router = APIRouter()
 
@@ -152,10 +153,21 @@ async def preview_employee_import(
         )
 
     content = await file.read()
-    service = ImportService(db)
-    result = service.preview_employees_excel(content)
+    content = await file.read()
+    
+    # [AGENT] Use Data Analyst Agent for intelligent parsing
+    agent = DataAnalystAgent()
+    # Pass filename for logging/context if needed
+    result = agent.preview_employees(content, filename)
 
-    return ImportResponse(**result.to_dict())
+    # Map Agent result to API response model
+    return ImportResponse(
+        success=result["success"],
+        total_rows=result["total_rows"],
+        preview_data=result["preview_data"],
+        errors=result["errors"],
+        message=result["message"]
+    )
 
 
 @router.post("/employees/execute", response_model=ImportResponse)

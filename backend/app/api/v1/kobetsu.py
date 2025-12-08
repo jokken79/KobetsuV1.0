@@ -28,6 +28,7 @@ from app.services.contract_date_service import ContractDateService
 from app.services.contract_renewal_service import ContractRenewalService
 from app.services.employee_compatibility_service import EmployeeCompatibilityValidator
 from app.services.contract_validator_service import ContractValidatorService
+from app.agents.compliance_agent import ComplianceAgent
 from app.schemas.kobetsu_keiyakusho import (
     KobetsuKeiyakushoCreate,
     KobetsuKeiyakushoUpdate,
@@ -265,6 +266,22 @@ async def create_contract(
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=error_details
+            )
+
+        # [AGENT] Compliance Agent Check (AI/Heuristic Layer)
+        # This adds an extra layer of "Audit" logic (e.g. 60H rule, regional min wage)
+        compliance_agent = ComplianceAgent()
+        compliance_result = compliance_agent.validate_contract(contract_data)
+        
+        if not compliance_result["is_valid"]:
+            # If agent blocks it (e.g. illegal rate), raise error
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "message": "Compliance Check Failed",
+                    "errors": compliance_result["errors"],
+                    "warnings": compliance_result["warnings"]
+                }
             )
 
     service = KobetsuService(db)
