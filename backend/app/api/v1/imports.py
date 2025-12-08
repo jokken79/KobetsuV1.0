@@ -13,6 +13,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user
 from app.core.rate_limit import limiter, RateLimits
 from app.services.import_service import ImportService
+from app.services.sync_resolver_service import SyncResolverService, ConflictStrategy
 
 router = APIRouter()
 
@@ -220,6 +221,171 @@ async def sync_employees_from_excel(
     # Execute sync
     import_result = service.import_employees(preview_result.preview_data, mode="sync")
     return ImportResponse(**import_result.to_dict())
+
+
+# ========================================
+# SYNC-RESOLVER ENDPOINTS (Conflict Detection)
+# ========================================
+
+class ConflictResolutionRequest(BaseModel):
+    """Request for resolving sync conflicts."""
+    strategy: str = "source_wins"  # source_wins, db_wins, newest_wins, manual
+    manual_decisions: Optional[dict] = None  # For manual strategy: {record_id: field_decisions}
+
+
+@router.post("/employees/sync/analyze")
+@limiter.limit(RateLimits.IMPORT_EXECUTE)
+async def analyze_employee_sync(
+    request: Request,
+    response: Response,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """
+    Analyze employee sync BEFORE applying changes.
+
+    Returns detailed analysis of:
+    - New employees to create
+    - Existing employees to update
+    - Records with conflicting values (require decision)
+    - Records in DB but not in Excel source
+
+    Use this endpoint first to preview conflicts, then use
+    /employees/sync/resolve to apply with chosen strategy.
+    """
+    filename = file.filename.lower()
+    if not any(filename.endswith(ext) for ext in ['.xlsx', '.xls', '.xlsm']):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Excel ファイル (.xlsx, .xlsm) をアップロードしてください。"
+        )
+
+    content = await file.read()
+    import_service = ImportService(db)
+
+    # First get preview data
+    preview_result = import_service.preview_employees_excel(content)
+    if not preview_result.success:
+        return {
+            "success": False,
+            "message": "Excel parsing failed",
+            "errors": preview_result.errors
+        }
+
+    # Analyze with sync resolver
+    resolver = SyncResolverService(db)
+    analysis = resolver.analyze_employee_sync(
+        source_data=preview_result.preview_data,
+        source_type="excel"
+    )
+
+    return {
+        "success": True,
+        "analysis": analysis.to_dict(),
+        "summary": {
+            "to_create": len(analysis.to_create),
+            "to_update": len(analysis.to_update),
+            "conflicts": len(analysis.conflicts),
+            "db_only": len(analysis.db_only),
+            "requires_attention": len(analysis.conflicts) > 0
+        },
+        "message": f"分析完了: {len(analysis.to_create)}件作成, {len(analysis.to_update)}件更新, {len(analysis.conflicts)}件コンフリクト"
+    }
+
+
+@router.post("/employees/sync/resolve")
+@limiter.limit(RateLimits.IMPORT_EXECUTE)
+async def resolve_employee_sync(
+    request: Request,
+    response: Response,
+    file: UploadFile = File(...),
+    strategy: str = Query("source_wins", description="Conflict resolution strategy"),
+    db: Session = Depends(get_db),
+):
+    """
+    Execute employee sync with conflict resolution.
+
+    Strategies:
+    - source_wins: Excel data overwrites DB (default)
+    - db_wins: Keep existing DB values
+    - newest_wins: Use most recently updated values
+    - merge: Combine non-conflicting fields
+
+    For complex conflicts, use /employees/sync/analyze first
+    to review conflicts, then call this with appropriate strategy.
+    """
+    filename = file.filename.lower()
+    if not any(filename.endswith(ext) for ext in ['.xlsx', '.xls', '.xlsm']):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Excel ファイル (.xlsx, .xlsm) をアップロードしてください。"
+        )
+
+    # Validate strategy
+    valid_strategies = ["source_wins", "db_wins", "newest_wins", "merge"]
+    if strategy not in valid_strategies:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"無効なストラテジー。有効な値: {', '.join(valid_strategies)}"
+        )
+
+    content = await file.read()
+    import_service = ImportService(db)
+
+    # Get preview data
+    preview_result = import_service.preview_employees_excel(content)
+    if not preview_result.success:
+        return ImportResponse(
+            success=False,
+            total_rows=0,
+            message="Excel parsing failed",
+            errors=preview_result.errors
+        )
+
+    # Analyze
+    resolver = SyncResolverService(db)
+    analysis = resolver.analyze_employee_sync(
+        source_data=preview_result.preview_data,
+        source_type="excel"
+    )
+
+    # Resolve conflicts
+    strategy_enum = ConflictStrategy(strategy)
+    sync_result = resolver.resolve_employee_conflicts(
+        analysis=analysis,
+        strategy=strategy_enum
+    )
+
+    return {
+        "success": sync_result.success,
+        "total_rows": len(preview_result.preview_data),
+        "created_count": sync_result.created_count,
+        "updated_count": sync_result.updated_count,
+        "conflict_count": sync_result.conflict_count,
+        "error_count": sync_result.error_count,
+        "snapshot_id": sync_result.snapshot_id,
+        "errors": sync_result.errors,
+        "message": f"同期完了: {sync_result.created_count}件作成, {sync_result.updated_count}件更新, {sync_result.conflict_count}件コンフリクト解決"
+    }
+
+
+@router.get("/employees/sync/snapshots")
+async def list_sync_snapshots(
+    db: Session = Depends(get_db),
+):
+    """
+    List available sync snapshots for potential rollback.
+
+    Each sync operation creates a snapshot that can be used
+    to revert changes if needed.
+    """
+    resolver = SyncResolverService(db)
+    snapshots = resolver.list_snapshots()
+
+    return {
+        "snapshots": snapshots,
+        "count": len(snapshots)
+    }
 
 
 # ========================================

@@ -143,6 +143,61 @@ services:
       - "app.component=frontend"
 
   # ========================================
+  # Scheduled Tasks (Cron)
+  # ========================================
+  kob24-scheduler:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: kob24-scheduler:latest
+    container_name: kob24-scheduler
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-kob24_admin}:${POSTGRES_PASSWORD:-kob24_secure_2024}@kob24-db:5432/${POSTGRES_DB:-kob24_db}
+      REDIS_URL: redis://kob24-redis:6379/0
+      SECRET_KEY: ${SECRET_KEY:-kob24_dev_secret_key_change_in_prod}
+      TZ: Asia/Tokyo
+      # Email notifications (optional)
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-noreply@uns-kobetsu.local}
+      # Slack notifications (optional)
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      # Alert recipients (comma-separated emails)
+      ALERT_EMAIL_RECIPIENTS: ${ALERT_EMAIL_RECIPIENTS:-}
+    volumes:
+      - ./backend:/app
+    depends_on:
+      kob24-backend:
+        condition: service_healthy
+    # Run scheduler that executes daily tasks at 6:00 AM and weekly tasks on Monday at 7:00 AM
+    command: >
+      sh -c "
+        echo 'Starting scheduler...' &&
+        while true; do
+          HOUR=$$(date +%H) &&
+          MINUTE=$$(date +%M) &&
+          DAY=$$(date +%u) &&
+          if [ \"$$HOUR\" = '06' ] && [ \"$$MINUTE\" = '00' ]; then
+            echo 'Running daily tasks...' &&
+            python scripts/run_scheduled_tasks.py --daily;
+          fi &&
+          if [ \"$$DAY\" = '1' ] && [ \"$$HOUR\" = '07' ] && [ \"$$MINUTE\" = '00' ]; then
+            echo 'Running weekly tasks...' &&
+            python scripts/run_scheduled_tasks.py --weekly;
+          fi &&
+          sleep 60;
+        done
+      "
+    networks:
+      - kob24-network
+    labels:
+      - "app.name=kob24-keiyakusho"
+      - "app.component=scheduler"
+
+  # ========================================
   # Adminer (Database UI)
   # ========================================
   kob24-adminer:

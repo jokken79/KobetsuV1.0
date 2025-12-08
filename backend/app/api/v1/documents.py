@@ -137,6 +137,156 @@ def _document_response(
 
 
 # ========================================
+# Document Types and Availability
+# ========================================
+
+class DocumentTypeInfo(BaseModel):
+    """Information about a document type."""
+    id: str
+    name_japanese: str
+    name_english: str
+    category: str
+    endpoint: str
+    available: bool = True
+    reason: str = ""
+
+
+DOCUMENT_TYPES = [
+    {"id": "kobetsu-keiyakusho", "name_japanese": "個別契約書", "name_english": "Individual Contract", "category": "contract", "endpoint": "/{contract_id}/kobetsu-keiyakusho"},
+    {"id": "jinzai-haken-kobetsu", "name_japanese": "人材派遣個別契約書", "name_english": "Dispatch Individual Contract", "category": "contract", "endpoint": "/{contract_id}/jinzai-haken-kobetsu"},
+    {"id": "shugyo-joken", "name_japanese": "就業条件明示書", "name_english": "Working Conditions", "category": "contract", "endpoint": "/{contract_id}/shugyo-joken"},
+    {"id": "haken-tsuchisho", "name_japanese": "派遣通知書", "name_english": "Dispatch Notification", "category": "notification", "endpoint": "/{contract_id}/haken-tsuchisho"},
+    {"id": "hakensaki-daicho", "name_japanese": "派遣先管理台帳", "name_english": "Destination Ledger", "category": "ledger", "endpoint": "/{contract_id}/hakensaki-daicho"},
+    {"id": "hakenmoto-daicho", "name_japanese": "派遣元管理台帳", "name_english": "Source Ledger", "category": "ledger", "endpoint": "/{contract_id}/hakenmoto-daicho"},
+    {"id": "haken-ji-taigu", "name_japanese": "派遣時の待遇情報明示書", "name_english": "Treatment Info at Dispatch", "category": "treatment", "endpoint": "/{contract_id}/haken-ji-taigu"},
+]
+
+DOCUMENT_TYPES_EMPLOYEE = [
+    {"id": "yatoire-ji-taigu", "name_japanese": "雇入れ時の待遇情報明示書", "name_english": "Treatment Info at Hiring", "category": "treatment", "endpoint": "/employee/{employee_id}/yatoire-ji-taigu"},
+]
+
+DOCUMENT_TYPES_FACTORY = [
+    {"id": "shugyo-jokyo", "name_japanese": "就業状況報告書", "name_english": "Employment Status Report", "category": "report", "endpoint": "/factory/{factory_id}/shugyo-jokyo"},
+]
+
+
+@router.get("/types")
+async def get_document_types(
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get list of all available document types.
+
+    Returns categorized list of document types that can be generated.
+    Useful for building UI document generation menus.
+    """
+    return {
+        "contract_documents": DOCUMENT_TYPES,
+        "employee_documents": DOCUMENT_TYPES_EMPLOYEE,
+        "factory_documents": DOCUMENT_TYPES_FACTORY,
+        "total_types": len(DOCUMENT_TYPES) + len(DOCUMENT_TYPES_EMPLOYEE) + len(DOCUMENT_TYPES_FACTORY)
+    }
+
+
+@router.get("/{contract_id}/available")
+async def get_available_documents(
+    contract_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get list of documents that can be generated for a specific contract.
+
+    Checks contract completeness and returns availability status for each document type.
+    """
+    # Get contract with factory and employees
+    contract = db.query(KobetsuKeiyakusho).filter(
+        KobetsuKeiyakusho.id == contract_id
+    ).first()
+
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contract not found")
+
+    # Get factory
+    factory = db.query(Factory).filter(Factory.id == contract.factory_id).first()
+
+    # Get employees
+    employee_ids = db.query(KobetsuEmployee.employee_id).filter(
+        KobetsuEmployee.kobetsu_keiyakusho_id == contract_id
+    ).all()
+    employee_count = len(employee_ids)
+
+    # Check availability for each document type
+    documents = []
+    for doc_type in DOCUMENT_TYPES:
+        available = True
+        reason = ""
+
+        # Check basic requirements
+        if not contract.work_content:
+            available = False
+            reason = "業務内容が未設定です"
+        elif not factory:
+            available = False
+            reason = "工場情報がありません"
+
+        # Some documents need employees
+        if doc_type["id"] in ["hakensaki-daicho", "hakenmoto-daicho", "haken-ji-taigu"]:
+            if employee_count == 0:
+                available = False
+                reason = "従業員が割り当てられていません"
+
+        documents.append({
+            **doc_type,
+            "available": available,
+            "reason": reason,
+            "endpoint": f"/api/v1/documents{doc_type['endpoint'].replace('{contract_id}', str(contract_id))}"
+        })
+
+    # Employee documents
+    employee_documents = []
+    for emp_id_tuple in employee_ids:
+        emp_id = emp_id_tuple[0]
+        emp = db.query(Employee).filter(Employee.id == emp_id).first()
+        if emp:
+            for doc_type in DOCUMENT_TYPES_EMPLOYEE:
+                employee_documents.append({
+                    **doc_type,
+                    "employee_id": emp_id,
+                    "employee_name": emp.full_name_kanji,
+                    "available": True,
+                    "reason": "",
+                    "endpoint": f"/api/v1/documents{doc_type['endpoint'].replace('{employee_id}', str(emp_id))}"
+                })
+
+    # Factory documents
+    factory_documents = []
+    if factory:
+        for doc_type in DOCUMENT_TYPES_FACTORY:
+            factory_documents.append({
+                **doc_type,
+                "factory_id": factory.id,
+                "factory_name": f"{factory.company_name} {factory.plant_name}",
+                "available": True,
+                "reason": "",
+                "endpoint": f"/api/v1/documents{doc_type['endpoint'].replace('{factory_id}', str(factory.id))}"
+            })
+
+    return {
+        "contract_id": contract_id,
+        "contract_number": contract.contract_number,
+        "contract_documents": documents,
+        "employee_documents": employee_documents,
+        "factory_documents": factory_documents,
+        "summary": {
+            "total_available": len([d for d in documents if d["available"]]) + len(employee_documents) + len(factory_documents),
+            "total_unavailable": len([d for d in documents if not d["available"]]),
+            "employee_count": employee_count
+        }
+    }
+
+
+# ========================================
 # Generate documents from contract ID
 # ========================================
 
@@ -1733,3 +1883,391 @@ async def get_excel_templates_status(
         "missing_templates": missing,
         "templates": templates,
     }
+
+
+# ========================================
+# TEMPLATE-BASED DOCUMENT GENERATION (NEW)
+# ========================================
+
+def _xlsm_response(
+    xlsm_bytes: bytes,
+    filename: str,
+    save_copy: bool = True,
+    subfolder: str = ""
+) -> Response:
+    """
+    Create Response for Excel macro-enabled documents (.xlsm).
+
+    Args:
+        xlsm_bytes: Excel document bytes
+        filename: Base filename (without extension)
+        save_copy: Whether to save a copy to disk
+        subfolder: Subfolder for saving
+
+    Returns:
+        FastAPI Response with correct content type for .xlsm
+    """
+    from urllib.parse import quote
+
+    def get_content_disposition(fname: str) -> str:
+        encoded = quote(fname, safe='')
+        return f"attachment; filename*=UTF-8''{encoded}"
+
+    full_filename = f"{filename}.xlsm"
+
+    if save_copy:
+        _save_document(xlsm_bytes, full_filename, subfolder)
+
+    return Response(
+        content=xlsm_bytes,
+        media_type="application/vnd.ms-excel.sheet.macroEnabled.12",
+        headers={
+            "Content-Disposition": get_content_disposition(full_filename)
+        }
+    )
+
+
+@router.get("/template/{contract_id}/kobetsu-keiyakusho")
+async def generate_template_kobetsu_keiyakusho(
+    contract_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Generate 個別契約書 using the Excel TEMPLATE method.
+
+    Uses template: 個別契約書TEXPERT2025.12Perfect.xlsm (18 sheets)
+
+    This method:
+    1. Loads the original Excel template
+    2. Fills control cells (AD1-AD5) and document cells
+    3. Preserves ALL formatting, borders, colors, fonts, and VBA macros
+    4. Returns a .xlsm file that looks identical to the original
+
+    Returns:
+        .xlsm file with contract data filled in
+    """
+    from app.services.kobetsu_template_service import KobetsuTemplateService
+
+    contract = db.query(KobetsuKeiyakusho).filter(
+        KobetsuKeiyakusho.id == contract_id
+    ).first()
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contract not found")
+
+    factory = contract.factory
+
+    # Get employees for this contract
+    kobetsu_employees = db.query(KobetsuEmployee).filter(
+        KobetsuEmployee.kobetsu_keiyakusho_id == contract_id
+    ).all()
+
+    try:
+        service = KobetsuTemplateService()
+        xlsm_bytes = service.generate_kobetsu_keiyakusho(contract, factory, kobetsu_employees)
+    except FileNotFoundError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Template file not found: {str(e)}"
+        )
+    except Exception as e:
+        logger.exception("Failed to generate document from template")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Document generation failed: {str(e)}"
+        )
+
+    # Build filename
+    factory_name = (
+        factory.plant_name or factory.company_name if factory else ""
+    ).replace(" ", "_").replace("/", "_")
+    filename = f"個別契約書_{factory_name}_{contract.contract_number}"
+
+    return _xlsm_response(xlsm_bytes, filename, subfolder="contracts")
+
+
+@router.get("/template/{contract_id}/tsuchisho")
+async def generate_template_tsuchisho(
+    contract_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Generate 通知書 (Dispatch Notification) using Excel template.
+
+    Returns:
+        .xlsm file with notification data filled in
+    """
+    from app.services.kobetsu_template_service import KobetsuTemplateService
+
+    contract = db.query(KobetsuKeiyakusho).filter(
+        KobetsuKeiyakusho.id == contract_id
+    ).first()
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contract not found")
+
+    factory = contract.factory
+    kobetsu_employees = db.query(KobetsuEmployee).filter(
+        KobetsuEmployee.kobetsu_keiyakusho_id == contract_id
+    ).all()
+
+    try:
+        service = KobetsuTemplateService()
+        xlsm_bytes = service.generate_tsuchisho(contract, factory, kobetsu_employees)
+    except Exception as e:
+        logger.exception("Failed to generate tsuchisho")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    factory_name = (factory.plant_name or factory.company_name if factory else "").replace(" ", "_")
+    filename = f"通知書_{factory_name}_{contract.contract_number}"
+    return _xlsm_response(xlsm_bytes, filename, subfolder="notifications")
+
+
+@router.get("/template/{contract_id}/daicho")
+async def generate_template_daicho(
+    contract_id: int,
+    employee_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Generate DAICHO (派遣先管理台帳) using Excel template.
+
+    Args:
+        contract_id: Contract ID
+        employee_id: Optional specific employee ID
+
+    Returns:
+        .xlsm file with registry data filled in
+    """
+    from app.services.kobetsu_template_service import KobetsuTemplateService
+
+    contract = db.query(KobetsuKeiyakusho).filter(
+        KobetsuKeiyakusho.id == contract_id
+    ).first()
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contract not found")
+
+    # Get employee
+    if employee_id:
+        kobetsu_emp = db.query(KobetsuEmployee).filter(
+            KobetsuEmployee.kobetsu_keiyakusho_id == contract_id,
+            KobetsuEmployee.employee_id == employee_id
+        ).first()
+    else:
+        kobetsu_emp = db.query(KobetsuEmployee).filter(
+            KobetsuEmployee.kobetsu_keiyakusho_id == contract_id
+        ).first()
+
+    if not kobetsu_emp:
+        raise HTTPException(status_code=404, detail="No employee found")
+
+    factory = contract.factory
+
+    try:
+        service = KobetsuTemplateService()
+        xlsm_bytes = service.generate_daicho(contract, factory, kobetsu_emp)
+    except Exception as e:
+        logger.exception("Failed to generate DAICHO")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    emp_name = kobetsu_emp.employee.full_name_kanji or kobetsu_emp.employee.employee_number
+    filename = f"DAICHO_{emp_name}_{contract.contract_number}"
+    return _xlsm_response(xlsm_bytes, filename, subfolder="ledgers")
+
+
+@router.get("/template/{contract_id}/hakenmoto-daicho")
+async def generate_template_hakenmoto_daicho(
+    contract_id: int,
+    employee_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Generate 派遣元管理台帳 (Dispatch Origin Registry) using Excel template.
+
+    Returns:
+        .xlsm file with registry data filled in
+    """
+    from app.services.kobetsu_template_service import KobetsuTemplateService
+
+    contract = db.query(KobetsuKeiyakusho).filter(
+        KobetsuKeiyakusho.id == contract_id
+    ).first()
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contract not found")
+
+    if employee_id:
+        kobetsu_emp = db.query(KobetsuEmployee).filter(
+            KobetsuEmployee.kobetsu_keiyakusho_id == contract_id,
+            KobetsuEmployee.employee_id == employee_id
+        ).first()
+    else:
+        kobetsu_emp = db.query(KobetsuEmployee).filter(
+            KobetsuEmployee.kobetsu_keiyakusho_id == contract_id
+        ).first()
+
+    if not kobetsu_emp:
+        raise HTTPException(status_code=404, detail="No employee found")
+
+    factory = contract.factory
+
+    try:
+        service = KobetsuTemplateService()
+        xlsm_bytes = service.generate_hakenmoto_daicho(contract, factory, kobetsu_emp)
+    except Exception as e:
+        logger.exception("Failed to generate hakenmoto daicho")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    emp_name = kobetsu_emp.employee.full_name_kanji or kobetsu_emp.employee.employee_number
+    filename = f"派遣元管理台帳_{emp_name}_{contract.contract_number}"
+    return _xlsm_response(xlsm_bytes, filename, subfolder="ledgers")
+
+
+@router.get("/template/{contract_id}/shugyo-joken")
+async def generate_template_shugyo_joken(
+    contract_id: int,
+    employee_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Generate 就業条件明示書 (Employment Conditions) using Excel template.
+
+    Returns:
+        .xlsm file with employment conditions filled in
+    """
+    from app.services.kobetsu_template_service import KobetsuTemplateService
+
+    contract = db.query(KobetsuKeiyakusho).filter(
+        KobetsuKeiyakusho.id == contract_id
+    ).first()
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contract not found")
+
+    if employee_id:
+        kobetsu_emp = db.query(KobetsuEmployee).filter(
+            KobetsuEmployee.kobetsu_keiyakusho_id == contract_id,
+            KobetsuEmployee.employee_id == employee_id
+        ).first()
+    else:
+        kobetsu_emp = db.query(KobetsuEmployee).filter(
+            KobetsuEmployee.kobetsu_keiyakusho_id == contract_id
+        ).first()
+
+    if not kobetsu_emp:
+        raise HTTPException(status_code=404, detail="No employee found")
+
+    factory = contract.factory
+
+    try:
+        service = KobetsuTemplateService()
+        xlsm_bytes = service.generate_shugyo_joken(contract, factory, kobetsu_emp)
+    except Exception as e:
+        logger.exception("Failed to generate shugyo joken")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    emp_name = kobetsu_emp.employee.full_name_kanji or kobetsu_emp.employee.employee_number
+    filename = f"就業条件明示書_{emp_name}_{contract.contract_number}"
+    return _xlsm_response(xlsm_bytes, filename, subfolder="conditions")
+
+
+@router.get("/template/{contract_id}/keiyakusho")
+async def generate_template_keiyakusho(
+    contract_id: int,
+    employee_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Generate 契約書 (Employment Contract) using Excel template.
+
+    Returns:
+        .xlsm file with employment contract filled in
+    """
+    from app.services.kobetsu_template_service import KobetsuTemplateService
+
+    contract = db.query(KobetsuKeiyakusho).filter(
+        KobetsuKeiyakusho.id == contract_id
+    ).first()
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contract not found")
+
+    if employee_id:
+        kobetsu_emp = db.query(KobetsuEmployee).filter(
+            KobetsuEmployee.kobetsu_keiyakusho_id == contract_id,
+            KobetsuEmployee.employee_id == employee_id
+        ).first()
+    else:
+        kobetsu_emp = db.query(KobetsuEmployee).filter(
+            KobetsuEmployee.kobetsu_keiyakusho_id == contract_id
+        ).first()
+
+    if not kobetsu_emp:
+        raise HTTPException(status_code=404, detail="No employee found")
+
+    factory = contract.factory
+
+    try:
+        service = KobetsuTemplateService()
+        xlsm_bytes = service.generate_keiyakusho(contract, factory, kobetsu_emp)
+    except Exception as e:
+        logger.exception("Failed to generate keiyakusho")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    emp_name = kobetsu_emp.employee.full_name_kanji or kobetsu_emp.employee.employee_number
+    filename = f"契約書_{emp_name}_{contract.contract_number}"
+    return _xlsm_response(xlsm_bytes, filename, subfolder="contracts")
+
+
+@router.post("/template/generate-from-data")
+async def generate_template_from_data(
+    data: dict,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Generate 個別契約書 from raw data dictionary.
+
+    This endpoint allows generating a document without having a contract
+    in the database. Useful for previews or testing.
+
+    Request body should contain the cell mapping fields:
+    - client_company_name: 派遣先会社名
+    - client_address: 派遣先住所
+    - client_tel: 派遣先電話番号
+    - supervisor_dept: 指揮命令者部署
+    - supervisor_position: 指揮命令者役職
+    - supervisor_name: 指揮命令者氏名
+    - job_description: 業務内容
+    - dispatch_start_date: 派遣開始日 (YYYY-MM-DD)
+    - dispatch_end_date: 派遣終了日 (YYYY-MM-DD)
+    - headcount: 派遣人数
+    - work_days_text: 就業日テキスト
+    - hourly_rate: 時給単価
+    - contract_date: 契約締結日 (YYYY-MM-DD)
+    ... and more (see KobetsuTemplateService for full list)
+
+    Returns:
+        .xlsm file with data filled in
+    """
+    from app.services.kobetsu_template_service import KobetsuTemplateService
+
+    try:
+        service = KobetsuTemplateService()
+        xlsm_bytes = service.generate_from_data(data)
+    except FileNotFoundError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Template file not found: {str(e)}"
+        )
+    except Exception as e:
+        logger.exception("Failed to generate document from template")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Document generation failed: {str(e)}"
+        )
+
+    # Use provided filename or default
+    filename = data.get('filename', '個別契約書_preview')
+
+    return _xlsm_response(xlsm_bytes, filename, save_copy=False)
