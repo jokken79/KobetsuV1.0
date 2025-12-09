@@ -16,7 +16,9 @@ import type {
   FactoryLineResponse,
   FactoryUpdate,
   FactoryShiftResponse,
-  FactoryBreakResponse
+  FactoryShiftCreate,
+  FactoryBreakResponse,
+  FactoryBreakCreate,
 } from '@/types'
 import { useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
@@ -352,7 +354,7 @@ export default function FactoriesPage() {
   }
 
   // Shift modal handlers
-  const handleSaveShift = async (shiftData: any) => {
+  const handleSaveShift = async (shiftData: FactoryShiftCreate) => {
     if (!selectedFactoryId) return
 
     try {
@@ -376,7 +378,7 @@ export default function FactoriesPage() {
   }
 
   // Break modal handlers
-  const handleSaveBreak = async (breakData: any) => {
+  const handleSaveBreak = async (breakData: FactoryBreakCreate) => {
     if (!selectedFactoryId) return
 
     try {
@@ -1075,7 +1077,7 @@ export default function FactoriesPage() {
                     <span className="text-xl">⏰</span>
                     <h3 className="font-bold text-amber-800 text-lg">休憩時間設定</h3>
                     <span className="text-xs bg-amber-200 text-amber-800 px-2 py-1 rounded-full font-semibold">
-                      {factoryDetail.breaks?.filter((b: any) => b.is_active).length || 0}件
+                      {factoryDetail.breaks?.filter((b: FactoryBreakResponse) => b.is_active).length || 0}件
                     </span>
                   </div>
                   <button
@@ -1089,12 +1091,12 @@ export default function FactoriesPage() {
                   </button>
                 </div>
 
-                {factoryDetail.breaks && factoryDetail.breaks.filter((b: any) => b.is_active).length > 0 ? (
+                {factoryDetail.breaks && factoryDetail.breaks.filter((b: FactoryBreakResponse) => b.is_active).length > 0 ? (
                   <div className="grid gap-2">
                     {factoryDetail.breaks
-                      .filter((b: any) => b.is_active)
-                      .sort((a: any, b: any) => (a.display_order || 0) - (b.display_order || 0))
-                      .map((breakItem: any) => (
+                      .filter((b: FactoryBreakResponse) => b.is_active)
+                      .sort((a: FactoryBreakResponse, b: FactoryBreakResponse) => (a.display_order || 0) - (b.display_order || 0))
+                      .map((breakItem: FactoryBreakResponse) => (
                         <div
                           key={breakItem.id}
                           className="bg-white rounded-lg px-4 py-3 border border-amber-200 flex items-center justify-between shadow-sm"
@@ -1148,7 +1150,7 @@ export default function FactoriesPage() {
                     <span className="text-xl">🕐</span>
                     <h3 className="font-bold text-indigo-800 text-lg">勤務シフト設定</h3>
                     <span className="text-xs bg-indigo-200 text-indigo-800 px-2 py-1 rounded-full font-semibold">
-                      {factoryDetail.shifts?.filter((s: any) => s.is_active).length || 0}件
+                      {factoryDetail.shifts?.filter((s: FactoryShiftResponse) => s.is_active).length || 0}件
                     </span>
                   </div>
                   <button
@@ -1162,12 +1164,12 @@ export default function FactoriesPage() {
                   </button>
                 </div>
 
-                {factoryDetail.shifts && factoryDetail.shifts.filter((s: any) => s.is_active).length > 0 ? (
+                {factoryDetail.shifts && factoryDetail.shifts.filter((s: FactoryShiftResponse) => s.is_active).length > 0 ? (
                   <div className="grid gap-2">
                     {factoryDetail.shifts
-                      .filter((s: any) => s.is_active)
-                      .sort((a: any, b: any) => (a.display_order || 0) - (b.display_order || 0))
-                      .map((shift: any) => (
+                      .filter((s: FactoryShiftResponse) => s.is_active)
+                      .sort((a: FactoryShiftResponse, b: FactoryShiftResponse) => (a.display_order || 0) - (b.display_order || 0))
+                      .map((shift: FactoryShiftResponse) => (
                         <div
                           key={shift.id}
                           className="bg-white rounded-lg px-4 py-3 border border-indigo-200 flex items-center justify-between shadow-sm"

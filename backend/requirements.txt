@@ -21,3 +21,4 @@ pytest-cov==4.1.0
 pytest-asyncio==0.21.1
 httpx==0.25.2
 slowapi==0.1.9
+testcontainers[postgres]==4.8.1

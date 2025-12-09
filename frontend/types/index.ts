@@ -882,3 +882,65 @@ export interface CompanySettings {
   licenses: LicenseInfo
   manager: ManagerInfo
 }
+
+// ========================================
+// COMPANY TYPES (派遣先企業)
+// ========================================
+
+export interface CompanyResponse {
+  company_id: number
+  name: string
+  name_kana?: string
+  address?: string
+  phone?: string
+  fax?: string
+  email?: string
+  website?: string
+  responsible_department?: string
+  responsible_name?: string
+  responsible_phone?: string
+  contract_start?: string
+  contract_end?: string
+  notes?: string
+  is_active: boolean
+  base_madre_company_id?: number
+  last_synced_at?: string
+  created_at: string
+  updated_at?: string
+  shifts: CompanyShiftResponse[]
+}
+
+export interface CompanyListItem {
+  company_id: number
+  name: string
+  name_kana?: string
+  address?: string
+  phone?: string
+  is_active: boolean
+  factories_count: number
+  shifts_count: number
+}
+
+// ========================================
+// ALERT TYPES (アラート)
+// ========================================
+
+export interface ExpiringContractAlert {
+  id: number
+  contract_number: string
+  worksite_name: string
+  dispatch_end_date: string
+  days_remaining: number
+  status: string
+  employee_count: number
+}
+
+export interface ConflictDateAlert {
+  factory_id: number
+  company_name: string
+  plant_name: string
+  conflict_date: string
+  days_remaining: number
+  active_contracts: number
+  total_employees: number
+}

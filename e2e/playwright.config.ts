@@ -12,7 +12,7 @@ export default defineConfig({
   reporter: 'html',
 
   use: {
-    baseURL: process.env.BASE_URL || 'http://localhost:3010',
+    baseURL: process.env.BASE_URL || 'http://localhost:3024',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -39,7 +39,7 @@ export default defineConfig({
 
   webServer: {
     command: 'docker compose up -d && sleep 10',
-    url: 'http://localhost:3010',
+    url: 'http://localhost:3024',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
   },
